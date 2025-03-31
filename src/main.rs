@@ -1,4 +1,7 @@
+use std::fs;
+
 use imap;
+use mailparse;
 
 fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 
@@ -34,7 +37,43 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
     Ok(Some(body))
 }
 
+fn fetch_inbox_top_mock() -> imap::error::Result<Option<String>> {
+    let contents = fs::read_to_string("./mail.txt")
+        .expect("Should have been able to read the file");
+    Ok(Some(contents))
+}
+
+fn parse_mail(content: &str) -> mailparse::ParsedMail<'_> {
+    mailparse::parse_mail(content.as_bytes()).unwrap()
+}
+
+
+fn print_mail(mail: &mailparse::ParsedMail) {
+    fn recursive_print_mail(mail: &mailparse::ParsedMail, indent: usize) {
+        let prefix = "  ".repeat(indent);
+        println!("{}{}", prefix, "=".repeat(80-2*indent));
+        println!("{}MAIL (NESTED {})", prefix, indent);
+        println!("{}HEADER:", prefix);
+        for h in mail.headers.iter() {
+            println!("{}KEY: {}, VALUE: {}", prefix, h.get_key(), h.get_value());
+        }
+
+        println!("{}{}", prefix, "-".repeat(80-2*indent)); // delim
+        println!("{}BODY:", prefix);
+        for line in  mail.get_body().unwrap().lines() {
+            println!("{}{}", prefix, line);
+        }
+
+        for subpart in mail.subparts.iter() {
+            recursive_print_mail(&subpart, indent+1);
+        }
+    }
+    recursive_print_mail(mail, 0);
+}
+
 fn main() {
     println!("Hello, world!");
-    println!("{}", fetch_inbox_top().unwrap().unwrap());
+    let raw = fetch_inbox_top_mock().unwrap().unwrap();
+    let mail = parse_mail(&raw);
+    print_mail(&mail);
 }

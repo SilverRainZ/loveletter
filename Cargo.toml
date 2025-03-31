@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 imap = { version = "3.0.0-alpha.15", features = ["native-tls"] }
+mailparse = "0.16.1"
