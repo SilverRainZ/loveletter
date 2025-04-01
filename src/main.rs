@@ -2,6 +2,9 @@ use std::fs;
 
 use imap;
 use mailparse;
+use chrono::{DateTime, Utc};
+use serde_derive::{Deserialize, Serialize};
+
 
 fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 
@@ -71,8 +74,38 @@ fn print_mail(mail: &mailparse::ParsedMail) {
     recursive_print_mail(mail, 0);
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoveLetter {
+    // Sender information.
+    sender_address: String,
+    sender_is_meimei_if_true_and_gege_if_false: bool,
+
+    // Content.
+    date: DateTime<Utc>,
+    title: String,
+    content: String,
+
+    // Meta data.
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    // IMAP login config.
+    imap_host: String,
+    imap_port: String,
+    imap_username: String,
+    imap_password: String,
+    imap_check_interval: String, // interval for checking new mail
+
+
+    allowed_sender: Vec<String>,
+    data_dir: String,
+    rst_dir: String,
+    timezone: String,
+}
 fn main() {
-    println!("Hello, world!");
     let raw = fetch_inbox_top_mock().unwrap().unwrap();
     let mail = parse_mail(&raw);
     print_mail(&mail);
