@@ -9,5 +9,6 @@ edition = "2021"
 chrono = { version = "0.4.40", features = ["serde"] }
 clap = { version = "4.5.34", features = ["derive"] }
 imap = { version = "3.0.0-alpha.15", features = ["native-tls"] }
-mailparse = "0.16.1"
+mail-parser = "0.10.2"
+serde = "1.0.219"
 serde_derive = "1.0.219"

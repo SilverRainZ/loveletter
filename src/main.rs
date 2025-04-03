@@ -1,7 +1,7 @@
 use std::fs;
 
 use imap;
-use mailparse;
+use mail_parser;
 use chrono::{DateTime, Utc};
 use serde_derive::{Deserialize, Serialize};
 
@@ -46,31 +46,37 @@ fn fetch_inbox_top_mock() -> imap::error::Result<Option<String>> {
     Ok(Some(contents))
 }
 
-fn parse_mail(content: &str) -> mailparse::ParsedMail<'_> {
-    mailparse::parse_mail(content.as_bytes()).unwrap()
+fn parse_mail(content: &str) -> mail_parser::Message<'_> {
+    mail_parser::MessageParser::default().parse(content.as_bytes()).unwrap()
 }
 
 
-fn print_mail(mail: &mailparse::ParsedMail) {
-    fn recursive_print_mail(mail: &mailparse::ParsedMail, indent: usize) {
+fn print_mail(mail: &mail_parser::Message) {
+    fn recursive_print_mail(mail: &mail_parser::Message, indent: usize) {
         let prefix = "  ".repeat(indent);
         println!("{}{}", prefix, "=".repeat(80-2*indent));
         println!("{}MAIL (NESTED {})", prefix, indent);
-        println!("{}HEADER:", prefix);
-        for h in mail.headers.iter() {
-            println!("{}KEY: {}, VALUE: {}", prefix, h.get_key(), h.get_value());
-        }
-
-        println!("{}{}", prefix, "-".repeat(80-2*indent)); // delim
-        println!("{}BODY:", prefix);
-        for line in  mail.get_body().unwrap().lines() {
-            println!("{}{}", prefix, line);
-        }
-
-        for subpart in mail.subparts.iter() {
-            recursive_print_mail(&subpart, indent+1);
+        for (i, p) in mail.parts.iter().enumerate() {
+            println!("{}{}", prefix, "-".repeat(80-2*indent));
+            println!("{}PART {}:", prefix, i);
+            println!("{}HEADER:", prefix);
+            for h in p.headers.iter() {
+                println!("{}KEY: {}, VALUE: {:?}", prefix, h.name.as_str(), h.value);
+            }
+            println!("{}{}", prefix, "~".repeat(80-2*indent));
+            println!("{}BODY:", prefix);
+            match &p.body {
+                mail_parser::PartType::Text(x) | mail_parser::PartType::Html(x) => {
+                    for line in  x.lines() {
+                        println!("{}{}", prefix, line);
+                    }
+                },
+                mail_parser::PartType::Message(m) => recursive_print_mail(&m, indent+1),
+                _ => println!("{}{:?}", prefix, p.body),
+            }
         }
     }
+
     recursive_print_mail(mail, 0);
 }
 
@@ -99,11 +105,9 @@ pub struct Config {
     imap_password: String,
     imap_check_interval: String, // interval for checking new mail
 
-
     allowed_sender: Vec<String>,
     data_dir: String,
     rst_dir: String,
-    timezone: String,
 }
 fn main() {
     let raw = fetch_inbox_top_mock().unwrap().unwrap();
