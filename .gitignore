@@ -21,4 +21,4 @@ target/
 /target
 
 # Test data
-mail.txt
+mail*.txt

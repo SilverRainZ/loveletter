@@ -1,38 +1,80 @@
 use std::fs;
+use std::process::ExitCode;
 
-use imap;
-use mail_parser;
+use anyhow::{bail, Context, Result};
+use log::{Level, info, debug};
 use chrono::{DateTime, Utc};
 use serde_derive::{Deserialize, Serialize};
+use imap;
+use mail_parser;
+use toml;
 
+use loveletter::utils::{logger, exit};
+
+pub struct Recipient {
+    cfg: Config,
+    session: imap::Session<Box<dyn imap::ImapConnection>>,
+}
+
+impl Recipient {
+    const INBOX: &str = "INBOX";
+
+    fn login(cfg: Config) -> Result<Recipient> {
+        let icfg = &cfg.imap;
+
+        info!("connecting to {}:{}...", &icfg.host, icfg.port);
+        let client = imap::ClientBuilder::new(&icfg.host, icfg.port).connect()?;
+        info!("connected");
+
+        // The client we have here is unauthenticated.
+        // To do anything useful with the e-mails, we need to log in
+        info!("login with username {}, password: {})...", icfg.username, "*".repeat(icfg.password.len()));
+        let mut session = client
+            .login(&icfg.username, &icfg.password)
+            .map_err(|e| e.0)?;
+        info!("logined");
+        Ok(Recipient{
+            cfg, session,
+        })
+    }
+
+    fn fetch_unseen() -> Result<Recipient> {
+        let mailbox = session.status(Self::INBOX, "(MESSAGES UNSEEN)")?;
+        info!("found {} mails ({} unread) in mailbox {}", mailbox.exists, mailbox.unseen.unwrap(), Self::INBOX);
+
+        for 
+    }
+}
+    fn fetch_recent() -> Result<Recipient> {
+        let mailbox = session.status(Self::INBOX, "(MESSAGES UNSEEN)")?;
+        info!("found {} mails ({} unread) in mailbox {}", mailbox.exists, mailbox.unseen.unwrap(), Self::INBOX);
+        for 
+    }
 
 fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
+    let inbox = "INBOX";
 
-    let client = imap::ClientBuilder::new("imap.yandex.com", 993).connect()?;
+    // list message count.
+    let mailbox = imap_session.status(inbox, "(MESSAGES UNSEEN)")?;
+    info!("imap: found {} mails ({} unread) in {}", mailbox.exists, mailbox.unseen.unwrap(), inbox);
 
-    // the client we have here is unauthenticated.
-    // to do anything useful with the e-mails, we need to log in
-    let mut imap_session = client
-        .login("i@example.com", "password")
-        .map_err(|e| e.0)?;
+   // we want to fetch the first email in the INBOX mailbox
+   imap_session.select(inbox)?;
 
-    // we want to fetch the first email in the INBOX mailbox
-    imap_session.select("INBOX")?;
+   // fetch message number 1 in this mailbox, along with its RFC822 field.
+   // RFC 822 dictates the format of the body of e-mails
+   let messages = imap_session.fetch("1", "RFC822")?;
+   let message = if let Some(m) = messages.iter().next() {
+       m
+   } else {
+       return Ok(None);
+   };
 
-    // fetch message number 1 in this mailbox, along with its RFC822 field.
-    // RFC 822 dictates the format of the body of e-mails
-    let messages = imap_session.fetch("2", "RFC822")?;
-    let message = if let Some(m) = messages.iter().next() {
-        m
-    } else {
-        return Ok(None);
-    };
-
-    // extract the message's body
-    let body = message.body().expect("message did not have a body!");
-    let body = std::str::from_utf8(body)
-        .expect("message was not valid utf-8")
-        .to_string();
+   // extract the message's body
+   let body = message.body().expect("message did not have a body!");
+   let body = std::str::from_utf8(body)
+       .expect("message was not valid utf-8")
+       .to_string();
 
     // be nice to the server and log out
     imap_session.logout()?;
@@ -41,7 +83,7 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 }
 
 fn fetch_inbox_top_mock() -> imap::error::Result<Option<String>> {
-    let contents = fs::read_to_string("./mail.txt")
+    let contents = fs::read_to_string("./mail2.txt")
         .expect("Should have been able to read the file");
     Ok(Some(contents))
 }
@@ -97,20 +139,47 @@ pub struct LoveLetter {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
-    // IMAP login config.
-    imap_host: String,
-    imap_port: String,
-    imap_username: String,
-    imap_password: String,
-    imap_check_interval: String, // interval for checking new mail
+pub struct ImapConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+}
 
-    allowed_sender: Vec<String>,
-    data_dir: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermConfig {
+    allowed_sender_addresses: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageConfig {
+    letter_dir: String,
     rst_dir: String,
 }
-fn main() {
-    let raw = fetch_inbox_top_mock().unwrap().unwrap();
-    let mail = parse_mail(&raw);
-    print_mail(&mail);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub imap: ImapConfig,
+    pub perm: PermConfig,
+    pub storage: StorageConfig,
+}
+
+fn load_config() -> Result<Config> {
+    let cfg_data = fs::read_to_string("./config.toml")?;
+    let cfg: Config = toml::from_str(&cfg_data)?;
+    Ok(cfg)
+}
+
+fn main() -> ExitCode {
+    logger::init(Some(Level::Debug)).unwrap();
+
+    let raw = fetch_inbox_top().unwrap().unwrap();
+    println!("{}", raw);
+    // let raw = fetch_inbox_top_mock().unwrap().unwrap();
+    // klet mail = parse_mail(&raw);
+    // kprint_mail(&mail);
+    //
+    //
+
+    ExitCode::SUCCESS
 }
