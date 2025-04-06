@@ -39,7 +39,7 @@ fn _main() -> Result<()> {
                 error!("failed to parse raw mail: {}", e);
                 continue;
             },
-            Ok(parsed_mail) => archive.write(&parsed_mail)?,
+            Ok(parsed_mail) => archive.upsert_letter(&parsed_mail)?,
         };
     }
 

@@ -33,7 +33,7 @@ pub struct ImapCfg {
 pub struct ArchiveCfg {
     // Data directories.
     pub letter_dir: String, // dir of structured love letters
-    pub rst_dir: String, // dir of generated reStructuredText docs
+    pub rstdoc_dir: String, // dir of generated reStructuredText docs
     pub create_dirs: Option<bool>, // whether to create data dirs automaticlly
 
     // Permssion control.

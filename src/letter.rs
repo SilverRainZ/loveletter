@@ -1,4 +1,7 @@
 use std::fs;
+use std::fs::OpenOptions;
+use std::io;
+use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -6,6 +9,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use log::{debug, info};
 use serde_derive::{Deserialize, Serialize};
 use toml;
+use unicode_width::UnicodeWidthStr;
 
 use crate::cfg::ArchiveCfg;
 use crate::mail::ParsedMail;
@@ -25,15 +29,78 @@ pub struct LoveLetter {
     content: String,
 }
 
+impl LoveLetter {
+    const DATE_FMT: &str = "%Y-%m-%d";
+    const YEAR_FMT: &str = "%Y";
+
+    fn load<P: AsRef<Path>>(p: P) -> Result<LoveLetter> {
+        let data = fs::read_to_string(p)?;
+        let letter: LoveLetter = toml::from_str(&data)?;
+        Ok(letter)
+    }
+
+    fn to_rstdoc_heading(&self) -> String {
+        // Document title:
+        //
+        // ```rst
+        // =========================
+        // 💌 Love Letters from YEAR
+        // =========================
+        // ```
+        let title = format!("💌  Love Letter from {}", self.date.format(Self::YEAR_FMT));
+        let delim = "=".repeat(title.width_cjk());
+        delim.to_string() + "\n" + &title + "\n" + &delim + "\n\n"
+    }
+
+    // convert to reStructuredText.
+    fn to_rstdoc_section(&self) -> String {
+        let mut buf = String::new();
+
+        // Section title:
+        //
+        // ```rst
+        // DATE: TITLE
+        // ===========
+        // ```
+        let date_str = format!("{}", self.date.format(Self::DATE_FMT));
+        let title = date_str.to_owned() + &(match &self.title {
+            Some(t) => ": ".to_string() + &t,
+            None => "".to_string(),
+        });
+        buf.push_str(&title);
+        buf.push('\n');
+        buf.push_str(&"=".repeat(title.width_cjk())); // title delim
+        buf.push('\n');
+
+        // Push loveletter directive.
+        buf.push_str(&format!("
+.. loveletter:: _
+   :date: {}
+   :author: {}
+   :createdat: {}
+   :updatedat: {}
+
+   {}
+",
+           date_str,
+           if self.from_meimei_if_true_and_gege_if_false { "妹妹 "} else { "哥哥" },
+           &self.created_at.map(|x| x.format(Self::DATE_FMT).to_string()).unwrap_or("".to_string()),
+           &self.updated_at.map(|x| x.format(Self::DATE_FMT).to_string()).unwrap_or("".to_string()),
+           self.content,
+           ));
+        buf.push('\n');
+
+        buf
+    }
+}
+
 pub struct Archive {
     cfg: ArchiveCfg,
-    pub letter_dir: PathBuf,
-    pub rst_dir: PathBuf,
+    letter_dir: PathBuf,
+    rstdoc_dir: PathBuf,
 }
 
 impl Archive {
-    const DATE_FMT: &str = "%Y-%m-%d";
-
     pub fn load(cfg: ArchiveCfg) -> Result<Archive> {
         fn create_dir(p: &Path, create_dirs: Option<bool>) -> Result<()> {
             if !p.exists() && create_dirs.unwrap_or(false) {
@@ -46,13 +113,13 @@ impl Archive {
 
         let letter_dir = PathBuf::from(cfg.letter_dir.to_owned());
         create_dir(&letter_dir, cfg.create_dirs)?;
-        let rst_dir = PathBuf::from(cfg.rst_dir.to_owned());
-        create_dir(&rst_dir, cfg.create_dirs)?;
+        let rstdoc_dir = PathBuf::from(cfg.rstdoc_dir.to_owned());
+        create_dir(&rstdoc_dir, cfg.create_dirs)?;
 
         Ok(Archive {
             cfg,
             letter_dir,
-            rst_dir,
+            rstdoc_dir,
         })
     }
 
@@ -107,7 +174,7 @@ impl Archive {
         Ok((date, title, action))
     }
 
-    pub fn write(&self, mail: &ParsedMail) -> Result<LoveLetter> {
+    pub fn upsert_letter(&self, mail: &ParsedMail) -> Result<LoveLetter> {
         let from = mail
             .from()
             .context("failed to extract mail sender's address")?;
@@ -174,16 +241,84 @@ impl Archive {
         Ok(letter)
     }
 
-    pub fn read(&self, date: NaiveDate) -> Result<LoveLetter> {
-        let letter_path = self.letter_path(&date);
-        let letter_data = fs::read_to_string(letter_path)?;
-        let letter: LoveLetter = toml::from_str(&letter_data)?;
-        Ok(letter)
+    pub fn get_letter(&self, date: NaiveDate) -> Result<LoveLetter> {
+        LoveLetter::load(self.letter_path(&date))
     }
 
     pub fn letter_path(&self, date: &NaiveDate) -> PathBuf {
         let mut p = self.letter_dir.clone();
-        p.push(date.format(Self::DATE_FMT).to_string() + ".toml");
+        p.push(format!("{}.toml", date.format(LoveLetter::DATE_FMT)));
+        p
+    }
+
+    pub fn generate_rstdoc(&self) -> Result<()> {
+        // Clear rstdoc_dir.
+        info!("clearing rstdoc dir {}...", self.rstdoc_dir.display());
+        fs::remove_dir_all(&self.rstdoc_dir).unwrap_or(());
+        fs::create_dir(&self.rstdoc_dir)?;
+        info!("cleared");
+
+        // Generate index.rst
+        let index_path = self.rstdoc_index_path();
+        info!("generating love letter index {}...", index_path.display());
+        fs::write(index_path, "\
+===============
+💌 Love Letters
+===============
+
+.. hint::
+   Generated from :ghrepo:`SilverRainZ/loveletter`.
+
+.. toctree::
+   :glob:
+
+   *
+"
+        )?;
+        info!("generated");
+        
+        info!("listing letter dir {}...", self.letter_dir.display());
+        let mut entries: Vec<_> = fs::read_dir(&self.letter_dir)?
+            .map(|e| e.map(|e| e.path()))
+            .collect::<Result<Vec<_>, io::Error>>()?.
+            into_iter().
+            filter(|e| *e != self.rstdoc_index_path()).
+            collect();
+        info!("found {} letters: letter dir {:?}...", entries.len(), entries);
+
+        // The order in which `read_dir` returns entries is not guaranteed. If reproducible
+        // ordering is required the entries should be explicitly sorted.
+        entries.sort();
+
+        for entry in entries {
+            let letter = LoveLetter::load(entry)?;
+            let mut file = self.rstdoc_dir.to_owned();
+            file.push(self.rstdoc_path(&letter.date));
+
+            info!("writing letter {} to rstdoc {}..." , letter.date, file.display());
+            if !file.exists() {
+                // Create new file if non-exist.
+                info!("created new rstdoc");
+                fs::write(&file, letter.to_rstdoc_heading())?;
+            }
+            // Append to existing file.
+            OpenOptions::new().append(true).open(file)?.write(letter.to_rstdoc_section().as_bytes())?;
+            info!("wrote");
+        }
+
+        Ok(())
+    }
+
+    pub fn rstdoc_path(&self, date: &NaiveDate) -> PathBuf {
+        let mut p = self.rstdoc_dir.clone();
+        p.push(format!("{}.rst", date.format(LoveLetter::YEAR_FMT)));
+        p
+    }
+
+    pub fn rstdoc_index_path(&self) -> PathBuf {
+        let mut p = self.rstdoc_dir.clone();
+        // https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-master_doc
+        p.push("index.rst");
         p
     }
 }
@@ -272,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn test_archive_write() {
+    fn test_archive_upsert_and_get_letter() {
         fn tmpdir_path(d: &TempDir) -> String {
                 d.path()
                 .to_str()
@@ -282,20 +417,31 @@ mod tests {
         let mut cfg = Cfg::load("./test_data/config.toml").unwrap().archive;
         let tmp_letter_dir = tempdir().unwrap();
         cfg.letter_dir = tmpdir_path(&tmp_letter_dir);
-        let tmp_rst_dir = tempdir().unwrap();
-        cfg.rst_dir = tmpdir_path(&tmp_rst_dir);
+        let tmp_rstdoc_dir = tempdir().unwrap();
+        cfg.rstdoc_dir = tmpdir_path(&tmp_rstdoc_dir);
         let archive = Archive::load(cfg).unwrap();
 
-        let data = fs::read_to_string("./test_data/mail1.txt").unwrap();
+        let data = fs::read_to_string("./test_data/mail.txt").unwrap();
         let raw_mail = RawMail::new(&data);
         let parsed_mail = raw_mail.parse().unwrap();
         let (date, _, _) = Archive::parse_subject(parsed_mail.subject().unwrap()).unwrap();
 
-        assert!(archive.read(date).is_err()); // test read non-exist
-        let letter = archive.write(&parsed_mail).unwrap();
-        assert!(archive.write(&parsed_mail).is_err()); // test duplicate writing
+        assert!(archive.get_letter(date).is_err()); // test read non-exist
+        let letter = archive.upsert_letter(&parsed_mail).unwrap();
+        assert!(archive.upsert_letter(&parsed_mail).is_err()); // test duplicate writing
 
-        let letter2 = archive.read(date).unwrap();
+        // Test TOML.
+        assert_eq!(fs::read_to_string(archive.letter_path(&date)).unwrap(),
+        fs::read_to_string("./test_data/2025-04-03.toml").unwrap());
+
+        // Test read and write consistency.
+        let letter2 = archive.get_letter(date).unwrap();
         assert_eq!(letter, letter2);
+
+        archive.generate_rstdoc().unwrap();
+        assert_eq!(fs::read_to_string(archive.rstdoc_index_path()).unwrap(),
+        fs::read_to_string("./test_data/index.rst").unwrap());
+        assert_eq!(fs::read_to_string(archive.rstdoc_path(&date)).unwrap(),
+        fs::read_to_string("./test_data/2025.rst").unwrap());
     }
 }

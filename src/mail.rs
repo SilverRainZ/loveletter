@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_raw_mail_parse() {
-        let data = fs::read_to_string("./test_data/mail1.txt").unwrap();
+        let data = fs::read_to_string("./test_data/mail.txt").unwrap();
         let raw_mail = RawMail{data};
         let parsed_mail = raw_mail.parse().unwrap();
         assert_eq!(parsed_mail.from(), Some("i@example.com"));
