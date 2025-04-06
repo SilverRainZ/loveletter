@@ -1,0 +1,11 @@
+[imap]
+host = "imap.example.com"
+port = 993
+username = "loveletter@example.com"
+password = "p_a_s_s_w_o_r_d"
+
+[archive]
+letter_dir = "./letter/"
+rst_dir = "./rst/"
+allowed_from_addrs = ["i@example.com"]
+allowed_to_addrs = ["loveletter@example.com"]

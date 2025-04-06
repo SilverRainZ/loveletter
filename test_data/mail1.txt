@@ -1,0 +1,27 @@
+Received: from postback21a.mail.example.com (postback21a.mail.example.net [ffff:6b8:c0e:500:1:45:d181:da21])
+        by oi6p7ej66pnezfvb.bar.foo.example.com (notsolitesrv/Yandex) with LMTPS id dlQPh2ira33R-GXExc4zt;
+        Thu, 03 Apr 2025 16:07:14 +0300
+Received: from mail-nwsmtp-mxback-production-main-529.bar.foo.example.com (mail-nwsmtp-mxback-production-main-529.bar.yp-c.example.net [IPv6:ffff:6b8:c0f:5707:0:640:c466:0])
+        by postback21a.mail.example.com (Yandex) with ESMTPS id 90D9560ACF;
+        Thu,  3 Apr 2025 16:07:14 +0300 (MSK)
+Received: from mail.example.com (ffff:6b8:c0f:e83:0:640:d4ab:0 [ffff:6b8:c0f:e83:0:640:d4ab:0])
+        by mail-nwsmtp-mxback-production-main-529.bar.foo.example.com (mxback/Yandex) with HTTPS id D7YrGA1L34Y0-HcwAZ1Z5;
+        Thu, 03 Apr 2025 16:07:14 +0300
+X-Yandex-Fwd: 1
+Authentication-Results: mail-nwsmtp-mxback-production-main-529.bar.foo.example.com; dkim=pass
+X-Yandex-Spam: 1
+Received: by mail-sendbernar-production-main-65.bar.foo.example.com with HTTP;
+        Thu, 03 Apr 2025 16:07:14 +0300
+From: Shengyu Zhang <i@example.com>
+To: Love Letter <loveletter@example.com>
+Subject: =?utf-8?B?MjAyNS8wNC8wMzog5rWL6K+V5pWw5o2u?=
+MIME-Version: 1.0
+X-Mailer: Yamail [ http://example.com ] 5.0
+Date: Thu, 03 Apr 2025 21:07:14 +0800
+Message-Id: <150821743685460@mail.example.com>
+Content-Transfer-Encoding: 8bit
+Content-Type: text/html; charset=utf-8
+Return-Path: i@example.com
+X-Yandex-Forward: 80a362f36666b65a2d29ddfff33785d3
+
+<div>张同学 我们这个 I 人交朋友的项目还有效咩</div><div> </div><div>-- </div><div>Best regards,</div><div>Shengyu Zhang</div><div> </div><div>https://example.com</div><div> </div>

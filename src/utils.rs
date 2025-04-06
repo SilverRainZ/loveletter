@@ -62,3 +62,16 @@ pub fn exit<T, E: fmt::Display+fmt::Debug>(r: Result<T, E>) -> ExitCode {
         },
     }
 }
+
+#[cfg(test)]
+mod test_main {
+    use super::*;
+    use ctor::ctor;
+    use log::Level;
+
+
+    #[ctor]
+    fn global_init() {
+        logger::init(Some(Level::Debug));
+    }
+}

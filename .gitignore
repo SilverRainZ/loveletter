@@ -19,6 +19,3 @@ target/
 # Added by cargo
 
 /target
-
-# Test data
-mail*.txt
