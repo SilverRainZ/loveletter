@@ -7,5 +7,5 @@ password = "p_a_s_s_w_o_r_d"
 [archive]
 letter_dir = "./letter/"
 rstdoc_dir = "./rst/"
-allowed_from_addrs = ["i@example.com"]
-allowed_to_addrs = ["loveletter@example.com"]
+allowed_from_addrs = ["Shengyu Zhang <i@example.com>"]
+allowed_to_addrs = ["Love Letter <loveletter@example.com>"]

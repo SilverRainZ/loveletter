@@ -7,7 +7,7 @@
 
 .. loveletter:: _
    :date: 2025-04-03
-   :author: 妹妹 
+   :author: Shengyu Zhang
    :createdat: 2025-04-03
    :updatedat: 2025-04-03
 

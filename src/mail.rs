@@ -6,7 +6,8 @@ use anyhow::{Context, Result};
 use log::{debug, info, error};
 use chrono::{DateTime, Utc};
 use imap;
-use mail_parser;
+use mail_parser::{MessageParser, Addr, Message, PartType};
+use email_address::EmailAddress;
 
 use crate::cfg::ImapCfg;
 
@@ -113,7 +114,7 @@ impl RawMail {
 
     pub fn parse(&self) -> Result<ParsedMail<'_>> {
         info!("parsing raw mail...");
-        let msg = mail_parser::MessageParser::default().
+        let msg = MessageParser::default().
             parse(self.data.as_bytes()).
             context("parse failed")?;
         info!("parsed mail: {}", msg.subject().unwrap_or("untitled"));
@@ -122,18 +123,27 @@ impl RawMail {
 
 }
 pub struct ParsedMail<'a> {
-    msg: mail_parser::Message<'a>,
+    msg: Message<'a>,
 }
 
 impl ParsedMail<'_> {
     /// NOTE: Only support single address for now.
-    pub fn from(&self) -> Option<&str> {
-        self.msg.from().and_then(|x| x.first()).and_then(|x| x.address())
+    fn addr_to_addr(addr: Option<&Addr>) -> Option<EmailAddress> {
+        addr.and_then(|x| {
+                match (x.name(), x.address()) {
+                    (Some(n), Some(a)) => format!("{} <{}>", n, a).parse::<EmailAddress>().ok(),
+                    (_, Some(a)) => a.parse::<EmailAddress>().ok(),
+                    (_, _) => None,
+                }
+            })
+    }
+    pub fn from(&self) -> Option<EmailAddress> {
+        Self::addr_to_addr(self.msg.from().and_then(|x| x.first()))
     }
 
     /// NOTE: Only support single address for now.
-    pub fn to(&self) -> Option<&str> {
-        self.msg.to().and_then(|x| x.first()).and_then(|x| x.address())
+    pub fn to(&self) -> Option<EmailAddress> {
+        Self::addr_to_addr(self.msg.to().and_then(|x| x.first()))
     }
 
     pub fn subject(&self) -> Option<&str> {
@@ -162,7 +172,7 @@ impl ParsedMail<'_> {
 
 impl fmt::Display for ParsedMail<'_> {
    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { 
-        fn recursive_fmt(f: &mut fmt::Formatter<'_>, mail: &mail_parser::Message, indent: usize) -> fmt::Result {
+        fn recursive_fmt(f: &mut fmt::Formatter<'_>, mail: &Message, indent: usize) -> fmt::Result {
             macro_rules! fmt_indent {
                 ($($arg:tt)*) => {
                     write!(f, "{}{}\n", "  ".repeat(indent), format!($($arg)*))?
@@ -181,12 +191,12 @@ impl fmt::Display for ParsedMail<'_> {
                 fmt_indent!("{}", "~".repeat(80-2*indent));
                 fmt_indent!("BODY:");
                 match &p.body {
-                    mail_parser::PartType::Text(x) | mail_parser::PartType::Html(x) => {
+                    PartType::Text(x) | PartType::Html(x) => {
                         for line in  x.lines() {
                             fmt_indent!("{}", line);
                         }
                     },
-                    mail_parser::PartType::Message(m) => recursive_fmt(f, &m, indent+1)?,
+                    PartType::Message(m) => recursive_fmt(f, &m, indent+1)?,
                     _ => fmt_indent!("{:?}", p.body),
                 }
             }
@@ -210,8 +220,8 @@ mod tests {
         let data = fs::read_to_string("./test_data/mail.txt").unwrap();
         let raw_mail = RawMail{data};
         let parsed_mail = raw_mail.parse().unwrap();
-        assert_eq!(parsed_mail.from(), Some("i@example.com"));
-        assert_eq!(parsed_mail.to(), Some("loveletter@example.com"));
+        assert_eq!(parsed_mail.from(), Some(EmailAddress::new_unchecked("Shengyu Zhang <i@example.com>")));
+        assert_eq!(parsed_mail.to(), Some(EmailAddress::new_unchecked("Love Letter <loveletter@example.com>")));
         assert_eq!(parsed_mail.subject(), Some("2025/04/03: 测试数据"));
         assert_eq!(parsed_mail.body().map(|x| x.join("")), Some("张同学 我们这个 I 人交朋友的项目还有效咩\u{a0}--\u{a0}Best regards,Shengyu Zhang\u{a0}https://example.com\u{a0}".to_string()));
     }

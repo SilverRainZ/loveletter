@@ -10,6 +10,7 @@ use log::{debug, info};
 use serde_derive::{Deserialize, Serialize};
 use toml;
 use unicode_width::UnicodeWidthStr;
+use email_address::EmailAddress;
 
 use crate::cfg::ArchiveCfg;
 use crate::mail::ParsedMail;
@@ -17,9 +18,10 @@ use crate::mail::ParsedMail;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LoveLetter {
     // Meta information.
-    from: String,
-    to: String,
+    from: EmailAddress,
+    to: EmailAddress,
     from_meimei_if_true_and_gege_if_false: bool,
+
     created_at: Option<DateTime<Utc>>,
     updated_at: Option<DateTime<Utc>>,
 
@@ -83,7 +85,7 @@ impl LoveLetter {
    {}
 ",
            date_str,
-           if self.from_meimei_if_true_and_gege_if_false { "妹妹 "} else { "哥哥" },
+           self.from.display_part(),
            &self.created_at.map(|x| x.format(Self::DATE_FMT).to_string()).unwrap_or("".to_string()),
            &self.updated_at.map(|x| x.format(Self::DATE_FMT).to_string()).unwrap_or("".to_string()),
            self.content,
@@ -206,10 +208,9 @@ impl Archive {
         info!("writing letter (date: {}, title: {:?}, action: {:?}) to {} (exist: {})...", 
             date, title, action, letter_path.display(), letter_exists);
 
+        let from_meimei_if_true_and_gege_if_false = from.display_part().contains("妹妹");
         let letter = LoveLetter {
-            from: from.to_owned(),
-            to: to.to_owned(),
-            from_meimei_if_true_and_gege_if_false: true, // TODO: distinguish gege and meimei
+            from, to, from_meimei_if_true_and_gege_if_false,
             created_at: mail.date(),                     // TODO: update for edit
             updated_at: mail.date(),
 

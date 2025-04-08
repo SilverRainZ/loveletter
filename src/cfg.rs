@@ -4,6 +4,8 @@ use anyhow::Result;
 use log::{debug, info, warn, error};
 use serde_derive::{Deserialize, Serialize};
 use toml;
+use email_address::EmailAddress;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Cfg {
@@ -25,7 +27,7 @@ impl Cfg {
 pub struct ImapCfg {
     pub host: String,
     pub port: u16,
-    pub username: String,
+    pub username: EmailAddress,
     pub password: String,
 }
 
@@ -37,8 +39,8 @@ pub struct ArchiveCfg {
     pub create_dirs: Option<bool>, // whether to create data dirs automaticlly
 
     // Permssion control.
-    pub allowed_from_addrs: Vec<String>,
-    pub allowed_to_addrs: Vec<String>,
+    pub allowed_from_addrs: Vec<EmailAddress>,
+    pub allowed_to_addrs: Vec<EmailAddress>,
     // pub allow_edit: bool, // allow sender edits existing love letter
 }
 
@@ -51,4 +53,3 @@ mod tests {
         assert!(Cfg::load("./test_data/config.toml").is_ok());
     }
 }
-
