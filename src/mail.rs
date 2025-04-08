@@ -11,7 +11,6 @@ use email_address::EmailAddress;
 
 use crate::cfg::ImapCfg;
 
-// 📬 of 🦢, which full of 💌.
 pub struct Mailbox {
     session: imap::Session<Box<dyn imap::ImapConnection>>,
 }

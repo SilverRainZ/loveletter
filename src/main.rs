@@ -9,7 +9,7 @@ use loveletter::cfg::Cfg;
 use loveletter::mail::Mailbox;
 use loveletter::letter::Archive;
 
-/// Receive 💌 from 🦢's 📬.
+/// 🐟 ← 💌 ← 📬 ← 💌 ← 🦢
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
 struct Args {
@@ -25,7 +25,7 @@ fn _main() -> Result<()> {
     let args = &Args::parse();
 
     logger::init(args.log_level)?;
-    info!("accessing 📬 of 🦢, which full of 💌...");
+    info!("🐟 ← 💌 ← 📬 ← 💌 ← 🦢");
 
     let cfg = Cfg::load(&args.config)?;
 
