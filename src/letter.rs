@@ -49,7 +49,7 @@ impl LoveLetter {
         // 💌 Love Letters from YEAR
         // =========================
         // ```
-        let title = format!("💌  Love Letter from {}", self.date.format(Self::YEAR_FMT));
+        let title = format!("💌  Love Letters from {}", self.date.format(Self::YEAR_FMT));
         let delim = "=".repeat(title.width_cjk());
         delim.to_string() + "\n" + &title + "\n" + &delim + "\n\n"
     }
@@ -180,24 +180,17 @@ impl Archive {
         let from = mail
             .from()
             .context("failed to extract mail sender's address")?;
-        if !self.cfg.allowed_from_addrs.contains(&from.to_owned()) {
-            // FIXME: why?
-            bail!(
-                "sender {} not in allowed list {:?}",
-                from,
-                self.cfg.allowed_from_addrs
-            )
-        }
+        let from = match self.cfg.allowed_from_addrs.find(&from) {
+            Some(a) => if from.display_part().is_empty() { a.to_owned() } else { from },
+            None => bail!( "sender {} not in allowed list {:?}", from, self.cfg.allowed_from_addrs),
+        };
         let to = mail
             .to()
             .context("failed to extract mail recipient's address")?;
-        if !self.cfg.allowed_to_addrs.contains(&to.to_owned()) {
-            bail!(
-                "recipient {} not in allowed list {:?}",
-                to,
-                self.cfg.allowed_to_addrs
-            )
-        }
+        let to = match self.cfg.allowed_to_addrs.find(&to) {
+            Some(a) => if to.display_part().is_empty() { a.to_owned() } else { to },
+            None => bail!( "recipient {} not in allowed list {:?}", to, self.cfg.allowed_to_addrs),
+        };
 
         let subject = mail.subject().context("failed to extract mail subject")?;
         let (date, title, action) =

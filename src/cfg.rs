@@ -6,6 +6,8 @@ use serde_derive::{Deserialize, Serialize};
 use toml;
 use email_address::EmailAddress;
 
+use crate::utils::EmailAddressList;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Cfg {
@@ -39,8 +41,8 @@ pub struct ArchiveCfg {
     pub create_dirs: Option<bool>, // whether to create data dirs automaticlly
 
     // Permssion control.
-    pub allowed_from_addrs: Vec<EmailAddress>,
-    pub allowed_to_addrs: Vec<EmailAddress>,
+    pub allowed_from_addrs: EmailAddressList,
+    pub allowed_to_addrs: EmailAddressList,
     // pub allow_edit: bool, // allow sender edits existing love letter
 }
 

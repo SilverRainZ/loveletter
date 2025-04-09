@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::borrow::Cow;
 use std::fmt;
+use std::iter::IntoIterator;
 
 use anyhow::{Context, Result};
 use log::{debug, info, error};
@@ -204,9 +205,7 @@ impl fmt::Display for ParsedMail<'_> {
         recursive_fmt(f, &self.msg, 0)
     }
 
-
 }
-
 
 #[cfg(test)]
 mod tests {

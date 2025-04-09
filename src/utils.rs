@@ -63,6 +63,37 @@ pub fn exit<T, E: fmt::Display+fmt::Debug>(r: Result<T, E>) -> ExitCode {
     }
 }
 
+use std::iter::IntoIterator;
+use email_address::EmailAddress;
+use serde_derive::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmailAddressList(Vec<EmailAddress>);
+
+impl EmailAddressList {
+    pub fn new() -> EmailAddressList {
+        EmailAddressList(Vec::new())
+    }
+
+    pub fn find(&self, elem: &EmailAddress) -> Option<&EmailAddress> {
+        for addr in self.0.iter() {
+            if addr.email() == elem.email() {
+                return Some(addr)
+            }
+        }
+        None
+    }
+}
+
+impl IntoIterator for EmailAddressList {
+    type Item = EmailAddress;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 #[cfg(test)]
 mod test_main {
     use super::*;
