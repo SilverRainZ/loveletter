@@ -5,6 +5,7 @@ use log::{debug, info, warn, error};
 use serde_derive::{Deserialize, Serialize};
 use toml;
 use email_address::EmailAddress;
+use chrono::TimeDelta;
 
 use crate::utils::EmailAddressList;
 
@@ -13,6 +14,7 @@ use crate::utils::EmailAddressList;
 pub struct Cfg {
     pub imap: ImapCfg,
     pub archive: ArchiveCfg,
+    pub run: RuntimeCfg,
 }
 
 impl Cfg {
@@ -51,12 +53,17 @@ pub struct ArchiveCfg {
     // pub allow_edit: bool, // allow sender edits existing love letter
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeCfg {
+    pub interval_seconds: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_cfg_load() {
-        assert!(Cfg::load("./test_data/config.toml").is_ok());
+        let _ = Cfg::load("./test_data/config.toml").unwrap();
     }
 }

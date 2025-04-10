@@ -1,8 +1,10 @@
 use std::process::ExitCode;
+use std::thread;
 
 use anyhow::Result;
 use log::{Level, debug, info, warn, error};
 use clap::Parser;
+use signal_hook::{consts::SIGINT, iterator::Signals};
 
 use loveletter::utils::{logger, exit};
 use loveletter::cfg::Cfg;
@@ -23,27 +25,25 @@ struct Args {
 
 fn _main() -> Result<()> {
     let args = &Args::parse();
-
     logger::init(args.log_level)?;
     info!("🐟 ← 💌 ← 📬 ← 💌 ← 🦢");
 
     let cfg = Cfg::load(&args.config)?;
-
     let archive = Archive::load(cfg.archive)?;
-
     let mut mailbox = Mailbox::open(cfg.imap)?;
-    let raw_mails = mailbox.fetch_unseen()?;
-    for raw_mail in raw_mails.iter() {
-        match raw_mail.parse() {
-            Err(e) => {
-                error!("failed to parse raw mail: {}", e);
-                continue;
-            },
-            Ok(parsed_mail) => archive.upsert_letter(&parsed_mail)?,
-        };
-    }
 
-    mailbox.close()?; // be nice to the server and log out
+    loop {
+        let raw_mails = mailbox.fetch_unseen()?;
+        for raw_mail in raw_mails.iter() {
+            match raw_mail.parse() {
+                Ok(parsed_mail) => archive.upsert_letter(&parsed_mail)?,
+                Err(e) => {
+                    error!("failed to parse raw mail: {}", e);
+                    continue;
+                },
+            };
+        }
+    }
 
     Ok(())
 }

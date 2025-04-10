@@ -9,3 +9,6 @@ letter_dir = "./letter/"
 rstdoc_dir = "./rst/"
 allowed_from_addrs = ["Shengyu Zhang <i@example.com>"]
 allowed_to_addrs = ["Love Letter <loveletter@example.com>"]
+
+[run]
+interval_seconds = 15
