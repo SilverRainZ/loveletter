@@ -6,14 +6,15 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
+use email_address::EmailAddress;
 use log::{debug, info};
 use serde_derive::{Deserialize, Serialize};
 use toml;
 use unicode_width::UnicodeWidthStr;
-use email_address::EmailAddress;
 
 use crate::cfg::ArchiveCfg;
 use crate::mail::ParsedMail;
+use crate::git::Repo;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LoveLetter {
@@ -65,17 +66,19 @@ impl LoveLetter {
         // ===========
         // ```
         let date_str = format!("{}", self.date.format(Self::DATE_FMT));
-        let title = date_str.to_owned() + &(match &self.title {
-            Some(t) => ": ".to_string() + &t,
-            None => "".to_string(),
-        });
+        let title = date_str.to_owned()
+            + &(match &self.title {
+                Some(t) => ": ".to_string() + &t,
+                None => "".to_string(),
+            });
         buf.push_str(&title);
         buf.push('\n');
         buf.push_str(&"=".repeat(title.width_cjk())); // title delim
         buf.push('\n');
 
         // Push loveletter directive.
-        buf.push_str(&format!("
+        buf.push_str(&format!(
+            "
 .. loveletter:: _
    :date: {}
    :author: {}
@@ -84,12 +87,18 @@ impl LoveLetter {
 
    {}
 ",
-           date_str,
-           self.from.display_part(),
-           &self.created_at.map(|x| x.format(Self::DATE_FMT).to_string()).unwrap_or("".to_string()),
-           &self.updated_at.map(|x| x.format(Self::DATE_FMT).to_string()).unwrap_or("".to_string()),
-           self.content,
-           ));
+            date_str,
+            self.from.display_part(),
+            &self
+                .created_at
+                .map(|x| x.format(Self::DATE_FMT).to_string())
+                .unwrap_or("".to_string()),
+            &self
+                .updated_at
+                .map(|x| x.format(Self::DATE_FMT).to_string())
+                .unwrap_or("".to_string()),
+            self.content,
+        ));
         buf.push('\n');
 
         buf
@@ -100,12 +109,14 @@ pub struct Archive {
     cfg: ArchiveCfg,
     letter_dir: PathBuf,
     rstdoc_dir: PathBuf,
+    letter_git_repo: Option<Repo>,
+    rstdoc_git_repo: Option<Repo>,
 }
 
 impl Archive {
     pub fn load(cfg: ArchiveCfg) -> Result<Archive> {
         fn create_dir(p: &Path, create_dirs: Option<bool>) -> Result<()> {
-            if !p.exists() && create_dirs.unwrap_or(false) {
+            if !p.exists() && create_dirs.unwrap_or(true) {
                 info!("creating dir {}", p.display());
                 fs::create_dir_all(p)?;
                 info!("created");
@@ -115,13 +126,23 @@ impl Archive {
 
         let letter_dir = PathBuf::from(cfg.letter_dir.to_owned());
         create_dir(&letter_dir, cfg.create_dirs)?;
+        let letter_git_repo = match cfg.letter_managed_by_git {
+            Some(true) => Some(Repo::load(&letter_dir)?),
+            _ => None,
+        };
         let rstdoc_dir = PathBuf::from(cfg.rstdoc_dir.to_owned());
         create_dir(&rstdoc_dir, cfg.create_dirs)?;
+        let rstdoc_git_repo = match cfg.rstdoc_managed_by_git {
+            Some(true) => Some(Repo::load(&rstdoc_dir)?),
+            _ => None,
+        };
 
         Ok(Archive {
             cfg,
             letter_dir,
             rstdoc_dir,
+            letter_git_repo,
+            rstdoc_git_repo,
         })
     }
 
@@ -176,20 +197,41 @@ impl Archive {
         Ok((date, title, action))
     }
 
+    // TODO: dedup by Message-ID? need index.
     pub fn upsert_letter(&self, mail: &ParsedMail) -> Result<LoveLetter> {
         let from = mail
             .from()
             .context("failed to extract mail sender's address")?;
         let from = match self.cfg.allowed_from_addrs.find(&from) {
-            Some(a) => if from.display_part().is_empty() { a.to_owned() } else { from },
-            None => bail!( "sender {} not in allowed list {:?}", from, self.cfg.allowed_from_addrs),
+            Some(a) => {
+                if from.display_part().is_empty() {
+                    a.to_owned()
+                } else {
+                    from
+                }
+            }
+            None => bail!(
+                "sender {} not in allowed list {:?}",
+                from,
+                self.cfg.allowed_from_addrs
+            ),
         };
         let to = mail
             .to()
             .context("failed to extract mail recipient's address")?;
         let to = match self.cfg.allowed_to_addrs.find(&to) {
-            Some(a) => if to.display_part().is_empty() { a.to_owned() } else { to },
-            None => bail!( "recipient {} not in allowed list {:?}", to, self.cfg.allowed_to_addrs),
+            Some(a) => {
+                if to.display_part().is_empty() {
+                    a.to_owned()
+                } else {
+                    to
+                }
+            }
+            None => bail!(
+                "recipient {} not in allowed list {:?}",
+                to,
+                self.cfg.allowed_to_addrs
+            ),
         };
 
         let subject = mail.subject().context("failed to extract mail subject")?;
@@ -198,13 +240,21 @@ impl Archive {
         let body = mail.body().context("failed to extract mail body")?;
         let letter_path = self.letter_path(&date);
         let letter_exists = letter_path.exists();
-        info!("writing letter (date: {}, title: {:?}, action: {:?}) to {} (exist: {})...", 
-            date, title, action, letter_path.display(), letter_exists);
+        info!(
+            "writing letter (date: {}, title: {:?}, action: {:?}) to {} (exist: {})...",
+            date,
+            title,
+            action,
+            letter_path.display(),
+            letter_exists
+        );
 
         let from_meimei_if_true_and_gege_if_false = from.display_part().contains("妹妹");
         let letter = LoveLetter {
-            from, to, from_meimei_if_true_and_gege_if_false,
-            created_at: mail.date(),                     // TODO: update for edit
+            from: from.clone(),
+            to,
+            from_meimei_if_true_and_gege_if_false,
+            created_at: mail.date(), // TODO: update for edit
             updated_at: mail.date(),
 
             date,
@@ -221,9 +271,8 @@ impl Archive {
                     );
                 }
                 let letter_data = toml::to_string(&letter)?;
-                fs::write(&letter_path, letter_data).
-                    with_context(|| format!("{}", letter_path.display()))?;
-                // TOOD: git commit
+                fs::write(&letter_path, letter_data)
+                    .with_context(|| format!("{}", letter_path.display()))?;
             }
             // Some("edit") => {
             //     // TODO:
@@ -231,6 +280,14 @@ impl Archive {
             Some(x) => bail!("unknown action: {}", x),
         }
         info!("wrote");
+
+        if let Some(repo) = &self.letter_git_repo {
+            repo.add(&letter_path)?;
+            repo.commit(&("[loveletter] ".to_owned() + subject), Some(from.clone()))?;
+            if self.cfg.git_push.unwrap_or(true) {
+                repo.push()?;
+            }
+        }
 
         Ok(letter)
     }
@@ -255,7 +312,9 @@ impl Archive {
         // Generate index.rst
         let index_path = self.rstdoc_index_path();
         info!("generating love letter index {}...", index_path.display());
-        fs::write(index_path, "\
+        fs::write(
+            index_path,
+            "\
 ===============
 💌 Love Letters
 ===============
@@ -267,37 +326,59 @@ impl Archive {
    :glob:
 
    *
-"
+",
         )?;
         info!("generated");
-        
+
         info!("listing letter dir {}...", self.letter_dir.display());
         let mut entries: Vec<_> = fs::read_dir(&self.letter_dir)?
             .map(|e| e.map(|e| e.path()))
-            .collect::<Result<Vec<_>, io::Error>>()?.
-            into_iter().
-            filter(|e| *e != self.rstdoc_index_path()).
-            collect();
-        info!("found {} letters: letter dir {:?}...", entries.len(), entries);
+            .collect::<Result<Vec<_>, io::Error>>()?
+            .into_iter()
+            .filter(|e| *e != self.rstdoc_index_path())
+            .collect();
+        info!(
+            "found {} letters: letter dir {:?}...",
+            entries.len(),
+            entries
+        );
 
         // The order in which `read_dir` returns entries is not guaranteed. If reproducible
         // ordering is required the entries should be explicitly sorted.
         entries.sort();
 
         for entry in entries {
+            if !entry.is_file() {
+                continue;
+            }
             let letter = LoveLetter::load(entry)?;
             let mut file = self.rstdoc_dir.to_owned();
             file.push(self.rstdoc_path(&letter.date));
 
-            info!("writing letter {} to rstdoc {}..." , letter.date, file.display());
+            info!(
+                "writing letter {} to rstdoc {}...",
+                letter.date,
+                file.display()
+            );
             if !file.exists() {
                 // Create new file if non-exist.
                 info!("created new rstdoc");
                 fs::write(&file, letter.to_rstdoc_heading())?;
             }
             // Append to existing file.
-            OpenOptions::new().append(true).open(file)?.write(letter.to_rstdoc_section().as_bytes())?;
+            OpenOptions::new()
+                .append(true)
+                .open(file)?
+                .write(letter.to_rstdoc_section().as_bytes())?;
             info!("wrote");
+        }
+
+        if let Some(repo) = &self.rstdoc_git_repo {
+            repo.add(&self.rstdoc_dir)?;
+            repo.commit("[loveletter] generate rstdoc", None)?;
+            if self.cfg.git_push.unwrap_or(true) {
+                repo.push()?;
+            }
         }
 
         Ok(())
@@ -320,9 +401,9 @@ impl Archive {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::{tempdir, TempDir};
-    use crate::mail::RawMail;
     use crate::cfg::Cfg;
+    use crate::mail::RawMail;
+    use tempfile::{tempdir, TempDir};
 
     #[test]
     fn test_archive_parse_subject() {
@@ -402,11 +483,14 @@ mod tests {
 
     #[test]
     fn test_archive_upsert_and_get_letter() {
+        use xshell::{cmd, Shell};
+
         fn tmpdir_path(d: &TempDir) -> String {
-                d.path()
-                .to_str()
-                .unwrap()
-                .to_owned()
+            let dir = d.path();
+            let sh = Shell::new().unwrap();
+            sh.change_dir(&dir);
+            cmd!(sh, "git init").run().unwrap();
+            dir.to_str().unwrap().to_owned()
         }
         let mut cfg = Cfg::load("./test_data/config.toml").unwrap().archive;
         let tmp_letter_dir = tempdir().unwrap();
@@ -425,17 +509,23 @@ mod tests {
         assert!(archive.upsert_letter(&parsed_mail).is_err()); // test duplicate writing
 
         // Test TOML.
-        assert_eq!(fs::read_to_string(archive.letter_path(&date)).unwrap(),
-        fs::read_to_string("./test_data/2025-04-03.toml").unwrap());
+        assert_eq!(
+            fs::read_to_string(archive.letter_path(&date)).unwrap(),
+            fs::read_to_string("./test_data/2025-04-03.toml").unwrap()
+        );
 
         // Test read and write consistency.
         let letter2 = archive.get_letter(date).unwrap();
         assert_eq!(letter, letter2);
 
         archive.generate_rstdoc().unwrap();
-        assert_eq!(fs::read_to_string(archive.rstdoc_index_path()).unwrap(),
-        fs::read_to_string("./test_data/index.rst").unwrap());
-        assert_eq!(fs::read_to_string(archive.rstdoc_path(&date)).unwrap(),
-        fs::read_to_string("./test_data/2025.rst").unwrap());
+        assert_eq!(
+            fs::read_to_string(archive.rstdoc_index_path()).unwrap(),
+            fs::read_to_string("./test_data/index.rst").unwrap()
+        );
+        assert_eq!(
+            fs::read_to_string(archive.rstdoc_path(&date)).unwrap(),
+            fs::read_to_string("./test_data/2025.rst").unwrap()
+        );
     }
 }

@@ -38,7 +38,12 @@ pub struct ArchiveCfg {
     // Data directories.
     pub letter_dir: String, // dir of structured love letters
     pub rstdoc_dir: String, // dir of generated reStructuredText docs
-    pub create_dirs: Option<bool>, // whether to create data dirs automaticlly
+    pub create_dirs: Option<bool>, // whether to create data dirs automaticlly, true by default
+
+    // Git integration.
+    pub letter_managed_by_git: Option<bool>, // whether letter_dir is managed by git, true by default
+    pub rstdoc_managed_by_git: Option<bool>, // same to above, true by default
+    pub git_push: Option<bool>, // true by default
 
     // Permssion control.
     pub allowed_from_addrs: EmailAddressList,
