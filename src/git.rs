@@ -14,24 +14,20 @@ pub struct Repo {
 impl Repo {
     pub fn load<P: AsRef<Path>>(prefix: P) -> Result<Repo> {
         debug!("loading git repository from {}...", prefix.as_ref().display());
-        let prefix = fs::canonicalize(&prefix)?;
         let sh = Shell::new()?;
         sh.change_dir(&prefix);
-        let prefix = PathBuf::from(cmd!(sh, "git rev-parse --show-toplevel").read()?);
-        debug!("git repository {} loaded", prefix.display());
-        Ok(Repo { prefix, sh })
+        debug!("git repository {} loaded", fs::canonicalize(&prefix)?.display());
+        Ok(Repo { 
+            prefix: prefix.as_ref().to_path_buf(),
+            sh,
+        })
     }
 
     pub fn add<P: AsRef<Path>>(&self, spec: P) -> Result<()> {
-        let spec = match spec.as_ref().is_absolute() {
-            true => {
-                let p = fs::canonicalize(&spec)?;
-                if !p.starts_with(&self.prefix) {
-                    bail!("spec {} not in git repository {}", p.display(), self.prefix.display());
-                }
-                p.strip_prefix(&self.prefix)?.to_path_buf()
-            },
-            false => spec.as_ref().to_path_buf(),
+        let spec = spec.as_ref();
+        let spec = match spec.starts_with(&self.prefix) {
+            true => spec.strip_prefix(&self.prefix)?.to_path_buf(),
+            false => spec.to_path_buf(),
         };
 
         let spec = spec

@@ -1,8 +1,8 @@
 use std::fs;
-use std::fs::OpenOptions;
 use std::io;
-use std::io::prelude::*;
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::ffi::OsStr;
 
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
@@ -127,14 +127,14 @@ impl Archive {
         let letter_dir = PathBuf::from(cfg.letter_dir.to_owned());
         create_dir(&letter_dir, cfg.create_dirs)?;
         let letter_git_repo = match cfg.letter_managed_by_git {
-            Some(true) => Some(Repo::load(&letter_dir)?),
-            _ => None,
+            Some(false) => None,
+            _ => Some(Repo::load(&letter_dir)?),
         };
         let rstdoc_dir = PathBuf::from(cfg.rstdoc_dir.to_owned());
         create_dir(&rstdoc_dir, cfg.create_dirs)?;
         let rstdoc_git_repo = match cfg.rstdoc_managed_by_git {
-            Some(true) => Some(Repo::load(&rstdoc_dir)?),
-            _ => None,
+            Some(false) => None,
+            _ => Some(Repo::load(&rstdoc_dir)?),
         };
 
         Ok(Archive {
@@ -284,7 +284,7 @@ impl Archive {
         if let Some(repo) = &self.letter_git_repo {
             repo.add(&letter_path)?;
             repo.commit(&("[loveletter] ".to_owned() + subject), Some(from.clone()))?;
-            if self.cfg.git_push.unwrap_or(true) {
+            if !self.cfg.git_no_push.unwrap_or(true) {
                 repo.push()?;
             }
         }
@@ -303,17 +303,11 @@ impl Archive {
     }
 
     pub fn generate_rstdoc(&self) -> Result<()> {
-        // Clear rstdoc_dir.
-        info!("clearing rstdoc dir {}...", self.rstdoc_dir.display());
-        fs::remove_dir_all(&self.rstdoc_dir).unwrap_or(());
-        fs::create_dir(&self.rstdoc_dir)?;
-        info!("cleared");
-
         // Generate index.rst
         let index_path = self.rstdoc_index_path();
         info!("generating love letter index {}...", index_path.display());
         fs::write(
-            index_path,
+            &index_path,
             "\
 ===============
 💌 Love Letters
@@ -328,6 +322,9 @@ impl Archive {
    *
 ",
         )?;
+        if let Some(repo) = &self.rstdoc_git_repo {
+            repo.add(&index_path)?;
+        }
         info!("generated");
 
         info!("listing letter dir {}...", self.letter_dir.display());
@@ -335,7 +332,8 @@ impl Archive {
             .map(|e| e.map(|e| e.path()))
             .collect::<Result<Vec<_>, io::Error>>()?
             .into_iter()
-            .filter(|e| *e != self.rstdoc_index_path())
+            .filter(|e| e.is_file())
+            .filter(|e| e.extension() == Some(OsStr::new("toml")))
             .collect();
         info!(
             "found {} letters: letter dir {:?}...",
@@ -343,40 +341,33 @@ impl Archive {
             entries
         );
 
-        // The order in which `read_dir` returns entries is not guaranteed. If reproducible
-        // ordering is required the entries should be explicitly sorted.
+        // The order in which `read_dir` returns entries is not guaranteed.
+        // Fix letter's order in rst file.
         entries.sort();
 
+        let mut files: HashMap<PathBuf, String> = HashMap::new();
         for entry in entries {
-            if !entry.is_file() {
-                continue;
-            }
             let letter = LoveLetter::load(entry)?;
-            let mut file = self.rstdoc_dir.to_owned();
-            file.push(self.rstdoc_path(&letter.date));
-
-            info!(
-                "writing letter {} to rstdoc {}...",
-                letter.date,
-                file.display()
-            );
-            if !file.exists() {
-                // Create new file if non-exist.
-                info!("created new rstdoc");
-                fs::write(&file, letter.to_rstdoc_heading())?;
+            let file = self.rstdoc_path(&letter.date);
+            if let Some(content) = files.get_mut(&file) {
+                (*content).push_str(&letter.to_rstdoc_section());
+            } else {
+                files.insert(file, letter.to_rstdoc_heading() + &letter.to_rstdoc_section());
             }
-            // Append to existing file.
-            OpenOptions::new()
-                .append(true)
-                .open(file)?
-                .write(letter.to_rstdoc_section().as_bytes())?;
-            info!("wrote");
+        }
+
+        for (file, content) in files.iter() {
+            debug!("writing letters to {}...", file.display());
+            fs::write(file, content)?;
+            debug!("wrote");
+            if let Some(repo) = &self.rstdoc_git_repo {
+                repo.add(file)?;
+            }
         }
 
         if let Some(repo) = &self.rstdoc_git_repo {
-            repo.add(&self.rstdoc_dir)?;
             repo.commit("[loveletter] generate rstdoc", None)?;
-            if self.cfg.git_push.unwrap_or(true) {
+            if !self.cfg.git_no_push.unwrap_or(true) {
                 repo.push()?;
             }
         }

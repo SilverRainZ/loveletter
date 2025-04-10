@@ -43,7 +43,7 @@ pub struct ArchiveCfg {
     // Git integration.
     pub letter_managed_by_git: Option<bool>, // whether letter_dir is managed by git, true by default
     pub rstdoc_managed_by_git: Option<bool>, // same to above, true by default
-    pub git_push: Option<bool>, // true by default
+    pub git_no_push: Option<bool>, // true by default
 
     // Permssion control.
     pub allowed_from_addrs: EmailAddressList,
