@@ -65,7 +65,7 @@ impl Mailbox {
         // Fetch message numbers in this mailbox, along with its RFC822 field.
         // RFC 822 dictates the format of the body of e-mails.
         debug!("fetching sequence_set {}...", seqs);
-        let msgs = self.session.fetch("3", "RFC822")?;
+        let msgs = self.session.fetch(seqs, "RFC822")?;
         debug!("fetched {} mails", msgs.len());
 
         let mut mails: Vec<RawMail> = Vec::new();
@@ -94,7 +94,7 @@ impl Mailbox {
     }
 
     pub fn fetch_unseen(&mut self) -> Result<Vec<RawMail>> {
-        self.fetch("NEW")
+        self.fetch("UNSEEN")
     }
 
     pub fn close(mut self) -> Result<()> {
