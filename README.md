@@ -14,6 +14,8 @@ $ loveletter -c ./config.toml
 
 See `./test_data/config.toml`.
 
-# Copyright
+# License
+
+MIT License.
 
 Copyright (c) 2025 Shengyu Zhang and Swan Si.
