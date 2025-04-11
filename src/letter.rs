@@ -265,7 +265,7 @@ impl Archive {
             None | Some("") | Some("new") => {
                 if letter_exists {
                     bail!(
-                        "letter of {} already exists: {}",
+                        "letter {} already exists and not \"[edit]\" action given: {} ",
                         date,
                         letter_path.display()
                     );

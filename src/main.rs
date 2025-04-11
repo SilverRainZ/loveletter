@@ -1,10 +1,12 @@
 use std::process::ExitCode;
+use std::sync::{Arc, atomic::AtomicBool, atomic::Ordering};
+use std::time::Duration;
 use std::thread;
 
 use anyhow::Result;
-use log::{Level, debug, info, warn, error};
+use log::{Level, info, error};
 use clap::Parser;
-use signal_hook::{consts::SIGINT, iterator::Signals};
+use signal_hook::{flag, consts::SIGTERM};
 
 use loveletter::utils::{logger, exit};
 use loveletter::cfg::Cfg;
@@ -32,18 +34,38 @@ fn _main() -> Result<()> {
     let archive = Archive::load(cfg.archive)?;
     let mut mailbox = Mailbox::open(cfg.imap)?;
 
-    loop {
+    let term = Arc::new(AtomicBool::new(false));
+    flag::register(SIGTERM, Arc::clone(&term))?;
+    while !term.load(Ordering::Relaxed) {
         let raw_mails = mailbox.fetch_unseen()?;
+        let mut upserted = 0;
         for raw_mail in raw_mails.iter() {
             match raw_mail.parse() {
-                Ok(parsed_mail) => archive.upsert_letter(&parsed_mail)?,
-                Err(e) => {
-                    error!("failed to parse raw mail: {}", e);
-                    continue;
+                Ok(parsed_mail) => match archive.upsert_letter(&parsed_mail) {
+                    Ok(_) => upserted += 1,
+                    Err(e) => error!("failed to upsert letter: {}", e),
                 },
+                Err(e) => error!("failed to parse raw mail: {}", e),
             };
         }
+        if upserted == 0 {
+            info!("no letter upserted, skip rst generation");
+        } else {
+            match archive.generate_rstdoc() {
+                Ok(_) => (),
+                Err(e) => error!("failed to generate rstdoc: {}", e),
+            }
+        }
+
+        let interval = 10;
+        info!("sleep for {} seconds...", interval);
+        thread::sleep(Duration::from_secs(interval));
     }
+
+    // TODO: doesn't work
+    info!("closing mailbox...");
+    mailbox.close()?;
+    info!("closed");
 
     Ok(())
 }
