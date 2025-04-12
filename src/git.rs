@@ -12,6 +12,14 @@ pub struct Repo {
 }
 
 impl Repo {
+    pub fn init<P: AsRef<Path>>(prefix: P) -> Result<Repo> {
+        let prefix = prefix.as_ref().to_path_buf();
+        let sh = Shell::new()?;
+        sh.change_dir(&prefix);
+        cmd!(sh, "git init").run()?;
+        Ok(Repo { prefix, sh })
+    }
+
     pub fn load<P: AsRef<Path>>(prefix: P) -> Result<Repo> {
         debug!("loading git repository from {}...", prefix.as_ref().display());
         let sh = Shell::new()?;

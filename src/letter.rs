@@ -224,8 +224,8 @@ pub struct Archive {
     cfg: ArchiveCfg,
     letter_dir: PathBuf,
     rstdoc_dir: PathBuf,
-    letter_git_repo: Option<Repo>,
-    rstdoc_git_repo: Option<Repo>,
+    letter_git_repo: Repo,
+    rstdoc_git_repo: Repo,
 }
 
 impl Archive {
@@ -239,18 +239,20 @@ impl Archive {
             Ok(())
         }
 
+        fn load_repo(p: &Path, create_dirs: Option<bool>) -> Result<Repo> {
+            Repo::load(p).or_else(|e| if create_dirs.unwrap_or(true) {
+                    Repo::init(p)
+                }  else {
+                    Err(e)
+                })
+        }
+
         let letter_dir = PathBuf::from(cfg.letter_dir.to_owned());
         create_dir(&letter_dir, cfg.create_dirs)?;
-        let letter_git_repo = match cfg.letter_managed_by_git {
-            Some(false) => None,
-            _ => Some(Repo::load(&letter_dir)?),
-        };
+        let letter_git_repo = load_repo(&letter_dir, cfg.create_dirs)?;
         let rstdoc_dir = PathBuf::from(cfg.rstdoc_dir.to_owned());
         create_dir(&rstdoc_dir, cfg.create_dirs)?;
-        let rstdoc_git_repo = match cfg.rstdoc_managed_by_git {
-            Some(false) => None,
-            _ => Some(Repo::load(&rstdoc_dir)?),
-        };
+        let rstdoc_git_repo = load_repo(&rstdoc_dir, cfg.create_dirs)?;
 
         Ok(Archive {
             cfg,
@@ -382,7 +384,7 @@ impl Archive {
 
         // Premission checks.
         match action.as_deref() {
-            None => if letter_exists && !self.cfg.allow_edit_by_default.unwrap_or(false) {
+            None => if letter_exists && !self.cfg.overwrite.unwrap_or(false) {
                 bail!("letter {} already exists: {} ", &letter, letter_path.display());
             }
             Some("edit") => (), // pass
@@ -398,12 +400,10 @@ impl Archive {
             .with_context(|| format!("{}", letter_path.display()))?;
         info!("wrote");
 
-        if let Some(repo) = &self.letter_git_repo {
-            repo.add(&letter_path)?;
-            repo.commit(&("[loveletter] ".to_owned() + subject), Some(from.clone()))?;
-            if !self.cfg.git_no_push.unwrap_or(true) {
-                repo.push()?;
-            }
+        self.letter_git_repo.add(&letter_path)?;
+        self.letter_git_repo.commit(&("[loveletter] ".to_owned() + subject), Some(from.clone()))?;
+        if !self.cfg.git_no_push.unwrap_or(true) {
+            self.letter_git_repo.push()?;
         }
 
         Ok(letter)
@@ -435,9 +435,7 @@ impl Archive {
    *
 ",
         )?;
-        if let Some(repo) = &self.rstdoc_git_repo {
-            repo.add(&index_path)?;
-        }
+        self.rstdoc_git_repo.add(&index_path)?;
         info!("generated");
 
         info!("listing letter dir {}...", self.letter_dir.display());
@@ -474,16 +472,12 @@ impl Archive {
             debug!("writing letters to {}...", file.display());
             fs::write(file, content)?;
             debug!("wrote");
-            if let Some(repo) = &self.rstdoc_git_repo {
-                repo.add(file)?;
-            }
+            self.rstdoc_git_repo.add(file)?;
         }
 
-        if let Some(repo) = &self.rstdoc_git_repo {
-            repo.commit("[loveletter] generate rstdoc", None)?;
-            if !self.cfg.git_no_push.unwrap_or(true) {
-                repo.push()?;
-            }
+        self.rstdoc_git_repo.commit("[loveletter] generate rstdoc", None)?;
+        if !self.cfg.git_no_push.unwrap_or(true) {
+            self.rstdoc_git_repo.push()?;
         }
 
         Ok(())

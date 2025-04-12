@@ -2,13 +2,12 @@
 use std::fs;
 
 use anyhow::Result;
+use email_address::EmailAddress;
 use log::info;
 use serde_derive::{Deserialize, Serialize};
 use toml;
-use email_address::EmailAddress;
 
 use crate::utils::EmailAddressList;
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Cfg {
@@ -38,19 +37,17 @@ pub struct ImapCfg {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArchiveCfg {
     // Data directories.
-    pub letter_dir: String, // dir of structured love letters
-    pub rstdoc_dir: String, // dir of generated reStructuredText docs
+    pub letter_dir: String,        // dir of structured love letters
+    pub rstdoc_dir: String,        // dir of generated reStructuredText docs
     pub create_dirs: Option<bool>, // whether to create data dirs automaticlly, true by default
 
     // Git integration.
-    pub letter_managed_by_git: Option<bool>, // whether letter_dir is managed by git, true by default
-    pub rstdoc_managed_by_git: Option<bool>, // same to above, true by default
-    pub git_no_push: Option<bool>, // true by default
+    pub git_no_push: Option<bool>, // do not push changes to remote, true by default
 
     // Permssion control.
     pub allowed_from_addrs: EmailAddressList,
     pub allowed_to_addrs: EmailAddressList,
-    pub allow_edit_by_default: Option<bool>, // allow sender existing love letter without specific "[edit]" action, false by default
+    pub overwrite: Option<bool>, // allow overwrite letters without "[edit]" action, false by default
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
