@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use log::{debug, info, error};
 use chrono::{DateTime, Utc};
 use imap;
-use mail_parser::{MessageParser, Addr, Message, PartType};
+use mail_parser::{MessageParser, Addr, Message, PartType, MessagePartId};
 use email_address::EmailAddress;
 
 use crate::cfg::ImapCfg;
@@ -155,17 +155,29 @@ impl ParsedMail<'_> {
             and_then(|x| DateTime::from_timestamp(x.to_timestamp(), 0))
     }
 
-    pub fn body(&self) -> Option<Vec<Cow<'_, str>>> {
+    pub fn text_body(&self) -> Option<String> {
         let mut body:Vec<Cow<'_, str>> = Vec::new();
         for i in self.msg.text_body.iter() {
-            match self.msg.body_text(*i) {
-                None => continue,
-                Some(x) => body.push(x),
+            if let Some(x) = self.msg.body_text(*i) {
+                body.push(x)
             };
         }
         match body.is_empty() {
             true => None,
-            false => Some(body),
+            false => Some(body.join("\n")),
+        }
+    }
+
+    pub fn html_body(&self) -> Option<String> {
+        let mut body:Vec<Cow<'_, str>> = Vec::new();
+        for i in self.msg.html_body.iter() {
+            if let Some(x) = self.msg.body_html(*i) {
+                body.push(x)
+            };
+        }
+        match body.is_empty() {
+            true => None,
+            false => Some(body.join("\n")),
         }
     }
 }
@@ -221,7 +233,7 @@ mod tests {
         assert_eq!(parsed_mail.from(), Some(EmailAddress::new_unchecked("Shengyu Zhang <gege@example.com>")));
         assert_eq!(parsed_mail.to(), Some(EmailAddress::new_unchecked("Love Letter <loveletter@example.com>")));
         assert_eq!(parsed_mail.subject(), Some("2025/04/03: 测试数据"));
-        assert_eq!(parsed_mail.body().map(|x| x.join("")), Some("张同学 我们这个 I 人交朋友的项目还有效咩\u{a0}--\u{a0}Best regards,Shengyu Zhang\u{a0}https://example.com\u{a0}".to_string()));
+        assert_eq!(parsed_mail.text_body(), Some("张同学 我们这个 I 人交朋友的项目还有效咩\u{a0}--\u{a0}Best regards,Shengyu Zhang\u{a0}https://example.com\u{a0}".to_string()));
     }
 
     #[ignore]

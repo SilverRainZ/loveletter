@@ -7,9 +7,13 @@
 
 .. loveletter:: _
    :date: 2025-04-03
-   :author: Shengyu Zhang
+   :nick: Shengyu Zhang
+   :author: 哥哥
    :createdat: 2025-04-03
    :updatedat: 2025-04-03
 
-   张同学 我们这个 I 人交朋友的项目还有效咩 -- Best regards,Shengyu Zhang https://example.com 
+   .. raw:: html
+
+      <div>张同学 我们这个 I 人交朋友的项目还有效咩</div><div> </div><div>-- </div><div>Best regards,</div><div>Shengyu Zhang</div><div> </div><div>https://example.com</div><div> </div>
+
 

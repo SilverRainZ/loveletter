@@ -81,14 +81,18 @@ impl LoveLetter {
             "
 .. loveletter:: _
    :date: {}
+   :nick: {}
    :author: {}
    :createdat: {}
    :updatedat: {}
 
-   {}
+   .. raw:: html
+
+      {}
 ",
             date_str,
             self.from.display_part(),
+            self.author(),
             &self
                 .created_at
                 .map(|x| x.format(Self::DATE_FMT).to_string())
@@ -102,6 +106,14 @@ impl LoveLetter {
         buf.push('\n');
 
         buf
+    }
+
+    fn author(&self) -> &str {
+        if self.from_meimei_if_true_and_gege_if_false {
+            "妹妹"
+        } else {
+            "哥哥"
+        }
     }
 }
 
@@ -243,7 +255,7 @@ impl Archive {
         let subject = mail.subject().context("failed to extract mail subject")?;
         let (date, title, action) =
             Self::parse_subject(subject).context("failed to parse mail subject:")?;
-        let body = mail.body().context("failed to extract mail body")?;
+        let content = mail.html_body().context("failed to extract mail body")?;
         let letter_path = self.letter_path(&date);
         let letter_exists = letter_path.exists();
         info!(
@@ -264,7 +276,7 @@ impl Archive {
 
             date,
             title,
-            content: body.join("\n"),
+            content,
         };
         match action.as_deref() {
             None | Some("") | Some("new") => {
