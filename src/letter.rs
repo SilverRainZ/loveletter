@@ -197,19 +197,27 @@ impl Archive {
         Ok((date, title, action))
     }
 
+    fn is_from_meimei_or_gege(&self, addr: &EmailAddress) -> Result<bool> {
+        let matched = self.cfg.allowed_from_addrs.find(addr).context("mail is not allowed: {}")?;
+        match matched.display_part() {
+            "妹妹" => Ok(true),
+            "哥哥" => Ok(false),
+            _ => bail!("name in address {} is unknown, only {} or {} is allowed",
+                addr.display_part(), "哥哥", "妹妹"),
+        }
+    }
+
     // TODO: dedup by Message-ID? need index.
     pub fn upsert_letter(&self, mail: &ParsedMail) -> Result<LoveLetter> {
         let from = mail
             .from()
             .context("failed to extract mail sender's address")?;
         let from = match self.cfg.allowed_from_addrs.find(&from) {
-            Some(a) => {
-                if from.display_part().is_empty() {
-                    a.to_owned()
-                } else {
-                    from
-                }
-            }
+            Some(a) => if from.display_part().is_empty() {
+                a.to_owned()
+            } else {
+                from
+            },
             None => bail!(
                 "sender {} not in allowed list {:?}",
                 from,
@@ -220,13 +228,11 @@ impl Archive {
             .to()
             .context("failed to extract mail recipient's address")?;
         let to = match self.cfg.allowed_to_addrs.find(&to) {
-            Some(a) => {
-                if to.display_part().is_empty() {
-                    a.to_owned()
-                } else {
-                    to
-                }
-            }
+            Some(a) => if to.display_part().is_empty() {
+                a.to_owned()
+            } else {
+                to
+            },
             None => bail!(
                 "recipient {} not in allowed list {:?}",
                 to,
@@ -249,11 +255,10 @@ impl Archive {
             letter_exists
         );
 
-        let from_meimei_if_true_and_gege_if_false = from.display_part().contains("妹妹");
         let letter = LoveLetter {
             from: from.clone(),
             to,
-            from_meimei_if_true_and_gege_if_false,
+            from_meimei_if_true_and_gege_if_false: self.is_from_meimei_or_gege(&from)?,
             created_at: mail.date(), // TODO: update for edit
             updated_at: mail.date(),
 

@@ -12,7 +12,7 @@ Authentication-Results: mail-nwsmtp-mxback-production-main-529.bar.foo.example.c
 X-Yandex-Spam: 1
 Received: by mail-sendbernar-production-main-65.bar.foo.example.com with HTTP;
         Thu, 03 Apr 2025 16:07:14 +0300
-From: Shengyu Zhang <i@example.com>
+From: Shengyu Zhang <gege@example.com>
 To: Love Letter <loveletter@example.com>
 Subject: =?utf-8?B?MjAyNS8wNC8wMzog5rWL6K+V5pWw5o2u?=
 MIME-Version: 1.0
@@ -21,7 +21,7 @@ Date: Thu, 03 Apr 2025 21:07:14 +0800
 Message-Id: <150821743685460@mail.example.com>
 Content-Transfer-Encoding: 8bit
 Content-Type: text/html; charset=utf-8
-Return-Path: i@example.com
+Return-Path: gege@example.com
 X-Yandex-Forward: 80a362f36666b65a2d29ddfff33785d3
 
 <div>张同学 我们这个 I 人交朋友的项目还有效咩</div><div> </div><div>-- </div><div>Best regards,</div><div>Shengyu Zhang</div><div> </div><div>https://example.com</div><div> </div>

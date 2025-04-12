@@ -1,4 +1,4 @@
-from = "Shengyu Zhang <i@example.com>"
+from = "Shengyu Zhang <gege@example.com>"
 to = "Love Letter <loveletter@example.com>"
 from_meimei_if_true_and_gege_if_false = false
 created_at = "2025-04-03T13:07:14Z"

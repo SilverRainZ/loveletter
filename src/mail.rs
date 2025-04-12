@@ -218,7 +218,7 @@ mod tests {
         let data = fs::read_to_string("./test_data/mail.txt").unwrap();
         let raw_mail = RawMail{data};
         let parsed_mail = raw_mail.parse().unwrap();
-        assert_eq!(parsed_mail.from(), Some(EmailAddress::new_unchecked("Shengyu Zhang <i@example.com>")));
+        assert_eq!(parsed_mail.from(), Some(EmailAddress::new_unchecked("Shengyu Zhang <gege@example.com>")));
         assert_eq!(parsed_mail.to(), Some(EmailAddress::new_unchecked("Love Letter <loveletter@example.com>")));
         assert_eq!(parsed_mail.subject(), Some("2025/04/03: 测试数据"));
         assert_eq!(parsed_mail.body().map(|x| x.join("")), Some("张同学 我们这个 I 人交朋友的项目还有效咩\u{a0}--\u{a0}Best regards,Shengyu Zhang\u{a0}https://example.com\u{a0}".to_string()));
