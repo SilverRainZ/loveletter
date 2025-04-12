@@ -14,6 +14,7 @@ keywords = ["email", "loveletter"]
 
 [dependencies]
 anyhow = "1.0.97"
+base64 = "0.22.1"
 chrono = { version = "0.4.40", features = ["serde"] }
 clap = { version = "4.5.34", features = ["derive"] }
 email_address = "0.2.9"

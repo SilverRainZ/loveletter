@@ -3,14 +3,19 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::str::pattern::Pattern;
+use std::fmt;
 
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
 use email_address::EmailAddress;
-use log::{debug, info, warn};
+use log::{debug, info, warn, error};
 use serde_derive::{Deserialize, Serialize};
+use serde::ser;
+use serde::de;
 use toml;
 use unicode_width::UnicodeWidthStr;
+use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 
 use crate::cfg::ArchiveCfg;
 use crate::mail::ParsedMail;
@@ -27,22 +32,19 @@ pub struct LoveLetter {
     updated_at: Option<DateTime<Utc>>,
 
     // Content.
-    date: NaiveDate,
+    date: Date,
     title: Option<String>,
     content: String,
 }
 
 impl LoveLetter {
-    const DATE_FMT: &str = "%Y-%m-%d";
-    const YEAR_FMT: &str = "%Y";
-
     fn load<P: AsRef<Path>>(p: P) -> Result<LoveLetter> {
         let data = fs::read_to_string(p)?;
         let letter: LoveLetter = toml::from_str(&data)?;
         Ok(letter)
     }
 
-    fn to_rstdoc_heading(&self) -> String {
+    fn rstdoc_heading(&self) -> String {
         // Document title:
         //
         // ```rst
@@ -50,13 +52,13 @@ impl LoveLetter {
         // 💌 Love Letters from YEAR
         // =========================
         // ```
-        let title = format!("💌  Love Letters from {}", self.date.format(Self::YEAR_FMT));
+        let title = format!("💌  Love Letters from {}", self.date.year);
         let delim = "=".repeat(title.width_cjk());
         delim.to_string() + "\n" + &title + "\n" + &delim + "\n\n"
     }
 
     // convert to reStructuredText.
-    fn to_rstdoc_section(&self) -> String {
+    fn rstdoc_section(&self) -> String {
         let mut buf = String::new();
 
         // Section title:
@@ -65,8 +67,7 @@ impl LoveLetter {
         // DATE: TITLE
         // ===========
         // ```
-        let date_str = format!("{}", self.date.format(Self::DATE_FMT));
-        let title = date_str.to_owned()
+        let title = self.date.to_string()
             + &(match &self.title {
                 Some(t) => ": ".to_string() + &t,
                 None => "".to_string(),
@@ -90,16 +91,16 @@ impl LoveLetter {
 
       {}
 ",
-            date_str,
+            self.date.to_string(),
             self.from.display_part(),
             self.author(),
             &self
                 .created_at
-                .map(|x| x.format(Self::DATE_FMT).to_string())
+                .map(|x| x.format(Date::FMT).to_string())
                 .unwrap_or("".to_string()),
             &self
                 .updated_at
-                .map(|x| x.format(Self::DATE_FMT).to_string())
+                .map(|x| x.format(Date::FMT).to_string())
                 .unwrap_or("".to_string()),
             self.content,
         ));
@@ -114,6 +115,108 @@ impl LoveLetter {
         } else {
             "哥哥"
         }
+    }
+
+    fn letter_filename(&self) -> String {
+        match &self.title {
+            Some(title) => format!("{}_{}.toml", self.date, URL_SAFE.encode(&title)),
+            None => self.date.to_string() + ".toml",
+        }
+    }
+
+    fn rstdoc_filename(&self) -> String {
+        return self.date.year.to_string() + ".toml"
+    }
+}
+
+impl fmt::Display for LoveLetter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.title {
+            Some(title) => write!(f, "<{}: {}>", self.date, title),
+            None => write!(f, "<{}>", self.date),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Date {
+    pub year: i32,
+    pub month: u32,
+    pub day: Option<u32>,
+}
+
+impl Date {
+    const FMT: &str = "%Y-%m-%d";
+
+    fn parse<P: Pattern>(s: &str, delim: P) -> Result<Date> {
+        // Extract year/month/day from "YYYY/MM/[DD]".
+        let mut splits = s.splitn(3, delim);
+        let year: i32 = splits.next().context("expect date *YYYY*/MM/DD")?.parse()?;
+        let month = splits.next().context("expect date YYYY/*MM*/DD")?.parse()?;
+        let day = splits.next().map(|x| x.parse::<u32>()).transpose()?;
+        Ok(Date{ year, month, day })
+    }
+
+    fn from_subject(s: &str) -> Result<Date> {
+        Self::parse(s, "/")
+    }
+
+    fn from_filename(s: &str) -> Result<Date> {
+        Self::parse(s, "-")
+    }
+}
+
+impl fmt::Display for Date {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (year, month, day) = (self.year, self.month, self.day.unwrap_or(1));
+        let fmt = match self.day {
+            Some(_) => Self::FMT,
+            None => "%Y-%m",
+        };
+        let s = match NaiveDate::from_ymd_opt(year, month, day) {
+            Some(d) => d.format(fmt).to_string(),
+            None => {
+                error!("failed to create native date from {:?}", self);
+                "".to_string()
+            }
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl ser::Serialize for Date {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+struct DateVisitor;
+
+impl<'de> de::Visitor<'de> for DateVisitor {
+    type Value = Date;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string")
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        Date::from_filename(value).map_err(|e| E::custom(format!("{}", e)))
+    }
+
+    fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
+        Date::from_filename(&value).map_err(|e| E::custom(format!("{}", e)))
+    }
+}
+
+impl<'de> de::Deserialize<'de> for Date {
+    fn deserialize<D>(deserializer: D) -> Result<Date, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(DateVisitor)
     }
 }
 
@@ -159,7 +262,7 @@ impl Archive {
     }
 
     /// Parse subject like "[ACTION] YYYY/MM/DD: TITLE", returns (date, title, action).
-    fn parse_subject(subject: &str) -> Result<(NaiveDate, Option<String>, Option<String>)> {
+    fn parse_subject(subject: &str) -> Result<(Date, Option<String>, Option<String>)> {
         let ptr: &str = subject.trim();
 
         // Extract title from "...: TITLE".
@@ -201,12 +304,7 @@ impl Archive {
 
         // Extract year/month/day from "YYYY/MM/DD".
         debug!("extracting date from {:?}...", ptr);
-        let mut splits = ptr.splitn(3, '/');
-        let year: i32 = splits.next().context("expect date *YYYY*/MM/DD")?.parse()?;
-        let month = splits.next().context("expect date YYYY/*MM*/DD")?.parse()?;
-        let day: u32 = splits.next().context("expect date YYYY/MM/*DD*")?.parse()?;
-        let date =
-            NaiveDate::from_ymd_opt(year, month, day).context("failed to create native date")?;
+        let date = Date::from_subject(ptr)?;
         debug!("date: {}", date);
 
         Ok((date, title, action))
@@ -254,23 +352,13 @@ impl Archive {
                 self.cfg.allowed_to_addrs
             ),
         };
-
         let subject = mail.subject().context("failed to extract mail subject")?;
         let (date, title, action) =
             Self::parse_subject(subject).context("failed to parse mail subject:")?;
         let content = mail.html_body().context("failed to extract mail body")?;
-        let letter_path = self.letter_path(&date);
-        let letter_exists = letter_path.exists();
-        info!(
-            "writing letter (date: {}, title: {:?}, action: {:?}) to {} (exist: {})...",
-            date,
-            title,
-            action,
-            letter_path.display(),
-            letter_exists
-        );
 
-        let letter = LoveLetter {
+        // Combine the aboved fields together.
+        let mut letter = LoveLetter {
             from: from.clone(),
             to,
             from_meimei_if_true_and_gege_if_false: self.is_from_meimei_or_gege(&from)?,
@@ -282,18 +370,28 @@ impl Archive {
             content,
         };
 
+        let letter_path = self.letter_path(&letter);
+        let letter_exists = letter_path.exists();
+        info!(
+            "writing letter {} (action: {:?}) to {} (exist: {})...",
+            letter,
+            action,
+            letter_path.display(),
+            letter_exists
+        );
 
         // Premission checks.
         match action.as_deref() {
             None => if letter_exists && !self.cfg.allow_edit_by_default.unwrap_or(false) {
-                bail!("letter {} already exists: {} ", date, letter_path.display());
+                bail!("letter {} already exists: {} ", &letter, letter_path.display());
             }
             Some("edit") => (), // pass
             Some(x) => bail!("unknown action: {}", x),
         }
 
         if letter_exists {
-            warn!("editing existing letter {}: {},", date, letter_path.display());
+            warn!("editing existing letter {}: {},", letter, letter_path.display());
+            letter.created_at = LoveLetter::load(&letter_path)?.created_at;
         }
         let letter_data = toml::to_string(&letter)?;
         fs::write(&letter_path, letter_data)
@@ -311,13 +409,9 @@ impl Archive {
         Ok(letter)
     }
 
-    pub fn get_letter(&self, date: NaiveDate) -> Result<LoveLetter> {
-        LoveLetter::load(self.letter_path(&date))
-    }
-
-    pub fn letter_path(&self, date: &NaiveDate) -> PathBuf {
+    pub fn letter_path(&self, letter: &LoveLetter) -> PathBuf {
         let mut p = self.letter_dir.clone();
-        p.push(format!("{}.toml", date.format(LoveLetter::DATE_FMT)));
+        p.push(letter.letter_filename());
         p
     }
 
@@ -360,18 +454,19 @@ impl Archive {
             entries
         );
 
-        // Letter's are named in YYYY-MM-DD, sort by newest to oldest.
+        // Letter's filename are prefixed with YYYY-MM-DD (see LoveLetter::letter_filename)
+        // sort by newest to oldest.
         entries.sort();
         entries.reverse();
 
         let mut files: HashMap<PathBuf, String> = HashMap::new();
         for entry in entries {
             let letter = LoveLetter::load(entry)?;
-            let file = self.rstdoc_path(&letter.date);
+            let file = self.rstdoc_path(&letter);
             if let Some(content) = files.get_mut(&file) {
-                (*content).push_str(&letter.to_rstdoc_section());
+                (*content).push_str(&letter.rstdoc_section());
             } else {
-                files.insert(file, letter.to_rstdoc_heading() + &letter.to_rstdoc_section());
+                files.insert(file, letter.rstdoc_heading() + &letter.rstdoc_section());
             }
         }
 
@@ -394,9 +489,9 @@ impl Archive {
         Ok(())
     }
 
-    pub fn rstdoc_path(&self, date: &NaiveDate) -> PathBuf {
+    pub fn rstdoc_path(&self, letter: &LoveLetter) -> PathBuf {
         let mut p = self.rstdoc_dir.clone();
-        p.push(format!("{}.rst", date.format(LoveLetter::YEAR_FMT)));
+        p.push(letter.rstdoc_filename());
         p
     }
 
@@ -420,7 +515,7 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("[edit] 1998/01/28: 妹妹生日快乐").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 Some("妹妹生日快乐".to_string()),
                 Some("edit".to_string())
             )
@@ -428,7 +523,7 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("[edit] 1998/01/28:妹妹生日快乐").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 Some("妹妹生日快乐".to_string()),
                 Some("edit".to_string())
             )
@@ -436,7 +531,7 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("[edit]1998/01/28:妹妹生日快乐").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 Some("妹妹生日快乐".to_string()),
                 Some("edit".to_string())
             )
@@ -444,7 +539,7 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("[edit] 1998/01/28").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 None,
                 Some("edit".to_string())
             )
@@ -452,7 +547,7 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("[edit]1998/01/28").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 None,
                 Some("edit".to_string())
             )
@@ -460,7 +555,7 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("[edit] 1998/01/28:").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 None,
                 Some("edit".to_string())
             )
@@ -468,7 +563,7 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("1998/01/28: 妹妹生日快乐").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 Some("妹妹生日快乐".to_string()),
                 None
             )
@@ -476,23 +571,23 @@ mod tests {
         assert_eq!(
             Archive::parse_subject("1998/01/28:妹妹生日快乐").unwrap(),
             (
-                NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(),
+                Date{ year: 1998, month: 1, day: Some(28) },
                 Some("妹妹生日快乐".to_string()),
                 None
             )
         );
         assert_eq!(
             Archive::parse_subject("1998/01/28:").unwrap(),
-            (NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(), None, None)
+            (Date{ year: 1998, month: 1, day: Some(28) }, None, None)
         );
         assert_eq!(
             Archive::parse_subject("1998/01/28").unwrap(),
-            (NaiveDate::from_ymd_opt(1998, 1, 28).unwrap(), None, None)
+            (Date{ year: 1998, month: 1, day: Some(28) }, None, None)
         );
     }
 
     #[test]
-    fn test_archive_upsert_and_get_letter() {
+    fn test_archive_upsert_letter() {
         use xshell::{cmd, Shell};
 
         fn tmpdir_path(d: &TempDir) -> String {
@@ -512,20 +607,18 @@ mod tests {
         let data = fs::read_to_string("./test_data/mail.txt").unwrap();
         let raw_mail = RawMail::new(&data);
         let parsed_mail = raw_mail.parse().unwrap();
-        let (date, _, _) = Archive::parse_subject(parsed_mail.subject().unwrap()).unwrap();
 
-        assert!(archive.get_letter(date).is_err()); // test read non-exist
         let letter = archive.upsert_letter(&parsed_mail).unwrap();
         assert!(archive.upsert_letter(&parsed_mail).is_err()); // test duplicate writing
 
         // Test TOML.
         assert_eq!(
-            fs::read_to_string(archive.letter_path(&date)).unwrap(),
+            fs::read_to_string(archive.letter_path(&letter)).unwrap(),
             fs::read_to_string("./test_data/2025-04-03.toml").unwrap()
         );
 
         // Test read and write consistency.
-        let letter2 = archive.get_letter(date).unwrap();
+        let letter2 = LoveLetter::load(archive.letter_path(&letter)).unwrap();
         assert_eq!(letter, letter2);
 
         archive.generate_rstdoc().unwrap();
@@ -534,7 +627,7 @@ mod tests {
             fs::read_to_string("./test_data/index.rst").unwrap()
         );
         assert_eq!(
-            fs::read_to_string(archive.rstdoc_path(&date)).unwrap(),
+            fs::read_to_string(archive.rstdoc_path(&letter)).unwrap(),
             fs::read_to_string("./test_data/2025.rst").unwrap()
         );
     }
