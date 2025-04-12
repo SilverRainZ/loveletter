@@ -21,8 +21,13 @@ struct Args {
     #[arg(short, long, default_value = "./config.toml")] 
     config: String, 
 
+    /// Specify log level [avail: debug, info, warn, error]
     #[arg(long)] // TODO: ValueEnum
     log_level: Option<Level>,
+
+    /// Re-generate rstdoc and exit
+    #[arg(long, action)] // TODO: ValueEnum
+    generate_rstdoc: bool,
 }
 
 fn _main() -> Result<()> {
@@ -31,7 +36,13 @@ fn _main() -> Result<()> {
     info!("🐟 ← 💌 ← 📬 ← 💌 ← 🦢");
 
     let cfg = Cfg::load(&args.config)?;
+
     let archive = Archive::load(cfg.archive)?;
+    if args.generate_rstdoc {
+        archive.generate_rstdoc()?;
+        return Ok(())
+    }
+
     let mut mailbox = Mailbox::open(cfg.imap)?;
 
     let term = Arc::new(AtomicBool::new(false));
