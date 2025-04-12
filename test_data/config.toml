@@ -11,7 +11,9 @@ allowed_from_addrs = [
     "哥哥 <gege@example.com>",
     "妹妹 <meimei@example.com>",
 ]
-allowed_to_addrs = ["Love Letter <loveletter@example.com>"]
+allowed_to_addrs = [
+    "Love Letter <loveletter@example.com>"
+]
 
-[run]
-interval_seconds = 15
+[runtime]
+interval = 60

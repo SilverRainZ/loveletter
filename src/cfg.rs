@@ -1,3 +1,4 @@
+// TODO: use a cfg 3rd party crate
 use std::fs;
 
 use anyhow::Result;
@@ -14,7 +15,7 @@ use crate::utils::EmailAddressList;
 pub struct Cfg {
     pub imap: ImapCfg,
     pub archive: ArchiveCfg,
-    pub run: RuntimeCfg,
+    pub runtime: RuntimeCfg,
 }
 
 impl Cfg {
@@ -50,12 +51,12 @@ pub struct ArchiveCfg {
     // Permssion control.
     pub allowed_from_addrs: EmailAddressList,
     pub allowed_to_addrs: EmailAddressList,
-    // pub allow_edit: bool, // allow sender edits existing love letter
+    pub allow_edit_by_default: Option<bool>, // allow sender existing love letter without specific "[edit]" action, false by default
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeCfg {
-    pub interval_seconds: u32,
+    pub interval: Option<u64>, // interval for checking new mails, in seconds, 60 by default
 }
 
 #[cfg(test)]

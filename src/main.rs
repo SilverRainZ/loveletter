@@ -57,7 +57,7 @@ fn _main() -> Result<()> {
             }
         }
 
-        let interval = 10;
+        let interval = cfg.runtime.interval.unwrap_or(60);
         info!("sleep for {} seconds...", interval);
         thread::sleep(Duration::from_secs(interval));
     }

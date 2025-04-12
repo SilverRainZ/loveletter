@@ -7,7 +7,7 @@ use std::ffi::OsStr;
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
 use email_address::EmailAddress;
-use log::{debug, info};
+use log::{debug, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use toml;
 use unicode_width::UnicodeWidthStr;
@@ -167,7 +167,10 @@ impl Archive {
         let (ptr, title) = match ptr.split_once(':') {
             // TODO: support '：'
             Some((ptr, title)) => (ptr, Some(title)),
-            None => (ptr, None),
+            None => match ptr.split_once('：') { // CJK chars compat
+                Some((ptr, title)) => (ptr, Some(title)),
+                None => (ptr, None),
+            },
         };
         let ptr = ptr.trim();
         let title = title
@@ -203,7 +206,7 @@ impl Archive {
         let month = splits.next().context("expect date YYYY/*MM*/DD")?.parse()?;
         let day: u32 = splits.next().context("expect date YYYY/MM/*DD*")?.parse()?;
         let date =
-            NaiveDate::from_ymd_opt(year, month, day).context("failed to creart native date")?;
+            NaiveDate::from_ymd_opt(year, month, day).context("failed to create native date")?;
         debug!("date: {}", date);
 
         Ok((date, title, action))
@@ -278,24 +281,23 @@ impl Archive {
             title,
             content,
         };
+
+
+        // Premission checks.
         match action.as_deref() {
-            None | Some("") | Some("new") => {
-                if letter_exists {
-                    bail!(
-                        "letter {} already exists and not \"[edit]\" action given: {} ",
-                        date,
-                        letter_path.display()
-                    );
-                }
-                let letter_data = toml::to_string(&letter)?;
-                fs::write(&letter_path, letter_data)
-                    .with_context(|| format!("{}", letter_path.display()))?;
+            None => if letter_exists && !self.cfg.allow_edit_by_default.unwrap_or(false) {
+                bail!("letter {} already exists: {} ", date, letter_path.display());
             }
-            // Some("edit") => {
-            //     // TODO:
-            // },
+            Some("edit") => (), // pass
             Some(x) => bail!("unknown action: {}", x),
         }
+
+        if letter_exists {
+            warn!("editing existing letter {}: {},", date, letter_path.display());
+        }
+        let letter_data = toml::to_string(&letter)?;
+        fs::write(&letter_path, letter_data)
+            .with_context(|| format!("{}", letter_path.display()))?;
         info!("wrote");
 
         if let Some(repo) = &self.letter_git_repo {
@@ -358,9 +360,9 @@ impl Archive {
             entries
         );
 
-        // The order in which `read_dir` returns entries is not guaranteed.
-        // Fix letter's order in rst file.
+        // Letter's are named in YYYY-MM-DD, sort by newest to oldest.
         entries.sort();
+        entries.reverse();
 
         let mut files: HashMap<PathBuf, String> = HashMap::new();
         for entry in entries {
