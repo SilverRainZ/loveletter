@@ -125,7 +125,7 @@ impl LoveLetter {
     }
 
     fn rstdoc_filename(&self) -> String {
-        return self.date.year.to_string() + ".toml"
+        return self.date.year.to_string() + ".rst"
     }
 }
 
