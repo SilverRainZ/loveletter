@@ -2,11 +2,10 @@
 use std::fs;
 
 use anyhow::Result;
-use log::{debug, info, warn, error};
+use log::info;
 use serde_derive::{Deserialize, Serialize};
 use toml;
 use email_address::EmailAddress;
-use chrono::TimeDelta;
 
 use crate::utils::EmailAddressList;
 

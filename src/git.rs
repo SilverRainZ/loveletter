@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use log::debug;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use xshell::{cmd, Shell};
 use email_address::EmailAddress;
 

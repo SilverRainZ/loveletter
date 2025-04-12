@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use log::{debug, info, error};
 use chrono::{DateTime, Utc};
 use imap;
-use mail_parser::{MessageParser, Addr, Message, PartType, MessagePartId};
+use mail_parser::{MessageParser, Addr, Message, PartType};
 use email_address::EmailAddress;
 
 use crate::cfg::ImapCfg;
