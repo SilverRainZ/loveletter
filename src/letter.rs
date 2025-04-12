@@ -431,6 +431,7 @@ impl Archive {
 
 .. toctree::
    :glob:
+   :reversed:
 
    *
 ",
