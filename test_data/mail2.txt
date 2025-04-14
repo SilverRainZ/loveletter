@@ -1,0 +1,68 @@
+Received: from postback11d.mail.example.net (postback11d.mail.example.net [2a02:6b8:c41:1300:1:45:d181:da11])
+	by mail-notsolitesrv-production-main-19.klg.yp-c.example.net (notsolitesrv/Yandex) with LMTPS id Dmq7Lo120lhC-Ndnm2Qf9
+	for <loveletter@example.com>; Sun, 13 Apr 2025 04:00:44 +0300
+Received: from mail-nwsmtp-mxfront-production-main-69.klg.yp-c.example.net (mail-nwsmtp-mxfront-production-main-69.klg.yp-c.example.net [IPv6:2a02:6b8:c42:68a1:0:640:4796:0])
+	by postback11d.mail.example.net (Yandex) with ESMTPS id 699CE609D5
+	for <loveletter@example.com>; Sun, 13 Apr 2025 04:00:44 +0300 (MSK)
+Received: from mail-lj1-x229.google.com (mail-lj1-x229.google.com [2a00:1450:4864:20::229])
+	by mail-nwsmtp-mxfront-production-main-69.klg.yp-c.example.net (mxfront/Yandex) with ESMTPS id h031Eq8E9Sw0-1lEWbise;
+	Sun, 13 Apr 2025 04:00:43 +0300
+X-Yandex-Fwd: 1
+Authentication-Results: mail-nwsmtp-mxfront-production-main-69.klg.yp-c.example.net; spf=pass (mail-nwsmtp-mxfront-production-main-69.klg.yp-c.example.net: domain of example.com designates 2a00:1450:4864:20::229 as permitted sender, rule=[ip6:2a00:1450:4000::/36]) smtp.mail=meimei@example.com; dkim=pass header.i=@example.com
+X-Yandex-Spam: 4
+Received: by mail-lj1-x229.google.com with SMTP id 38308e7fff4ca-30eef9ce7feso32156031fa.0
+        for <loveletter@example.com>; Sat, 12 Apr 2025 18:00:43 -0700 (PDT)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=example.com; s=20230601; t=1744506043; x=1745110843; darn=example.com;
+        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject
+         :date:message-id:reply-to;
+        bh=8ScAOmFtciSDPouLnYutw3JjoHZdsn3iMg30rU7hbI8=;
+        b=VzQW/G/77dRYWHljxdQZd8qyUl4dgYtMKyocBlCFru+1YmmDQjGwray+I4XDf2QgTQ
+         IlgZP74pDW4996Rcb9MfMDt7DrAfSQMb7EXSkdDtrQquZF7b/w3Pd3ooERHDYbWAv4/C
+         lhsM7Lr6GiAMxCQ9iQzO4YA/ma3KeSOsIg5l1nPAXWhfIBnXSCzFOP7xZw11S75m2im4
+         q2WIOKRagNMlgEnQDPrWCLSydPmd9IvFSwWNtV74T7BPW3e06sk+FyvbIJW+iDQQP8+L
+         2RMT+RYR+MSpSg5m5n0e3tuuOd9tMBPfODi+3BJ4jsgF16AtAkZd9lx0VsF/RsWNtSDp
+         oa9A==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20230601; t=1744506043; x=1745110843;
+        h=to:subject:message-id:date:from:mime-version:x-gm-message-state
+         :from:to:cc:subject:date:message-id:reply-to;
+        bh=8ScAOmFtciSDPouLnYutw3JjoHZdsn3iMg30rU7hbI8=;
+        b=nv9KZtd3brYTaBfMlsc6RhHIUbDC4hpdbwPHBdn6VNbFp/NZLh/awPWbQc0l6eCAtJ
+         jw2FR3wqNM1VtNGYl+MELIPSqs6VtnKdP9VB48eDnyHUwUFpV9gutwT8kREodXsA8YSj
+         xBSbX9633+hbBcs5e90tv+PC3yYNY47VWPu4nb334zmsc8MVP+46T5nL1YnJju8Ls3p8
+         kVDjZAuzKm39Nug58Zjr3evi4KEW5vxHLGStZnGJ7IhW8uXnnG8B1UcyUkQOe/iol0jg
+         xcz6D1IejWxCt4gZAued4nTPZRGmFnEPHDr0X+5gWaeUzNghJ0XvZ9HYbM4uTIefa6zN
+         g4WA==
+X-Gm-Message-State: AOJu0YygQrx5tgfiX/oNDv7RsuZ6eGP8fJJSOn0X3w3ZtwVzctmic97T
+	9J8+dp76ZdzPev1bYKTfu+RXMFze8fUIISZ5naIXEcovWuz9gx35nZP20eAsmikZeytuhoU3Ump
+	+UE3A30GWgXQo6fNOd6RX5i27e/z9N5QJ
+X-Gm-Gg: ASbGnctgpPJ6KPfxgWM1QH8tP/c3SIyLLB2XdhakRcEw4KjI/vearIvi6rpeDUhUhuF
+	OLfztY4PBwvejvTjtd0X/+O8hnCQHbXq+ij1wgTvyyKvRINaI9pB+ojrpBjFbFX+/GANvVYmPa/
+	FeFxJFIeZgDl9O7e0Kna0GUJu+W+B8FEIBujJGszB1/DTjlF4+nb7DKA==
+X-Google-Smtp-Source: AGHT+IGju1cG2AltzCAmr09B2u1e8A4EFNBBrDzOte7tA9HozdCseByz+PR7SDwhdQPA3I6nkHddyDg2Wky/1qAKnBs=
+X-Received: by 2002:a05:651c:30d4:b0:30d:e104:b594 with SMTP id
+ 38308e7fff4ca-31049aaef6fmr23204611fa.40.1744506042386; Sat, 12 Apr 2025
+ 18:00:42 -0700 (PDT)
+MIME-Version: 1.0
+From: =?UTF-8?B?U3dhbiDlj7jmlocgfCBNZW1iZXIgSUdYLUdJUEBEVUZF?= <meimei@example.com>
+Date: Sat, 12 Apr 2025 18:00:31 -0700
+X-Gm-Features: ATxdqUGzYbHtvfm_0wWuB8xSEcP6SITQYw6hd9jbPA8JZo_YUcFAPbHo0mv1GTE
+Message-ID: <CAM2pnfhS+FZw7qRvHDJ4x7HoDhCCna20=jOKKCcbu4TeG0ha_g@mail.example.com>
+Subject: =?UTF-8?B?MjAyNS8wMy8yMjog5rip5p+U?=
+To: loveletter@example.com
+Content-Type: multipart/alternative; boundary="000000000000f7159f06329e763d"
+Return-Path: meimei@example.com
+X-Yandex-Forward: 80a362f36666b65a2d29ddfff33785d3
+
+--000000000000f7159f06329e763d
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: base64
+
+Zm9vCg==
+--000000000000f7159f06329e763d
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: base64
+
+PHA+Zm9vPC9wPgo=
+--000000000000f7159f06329e763d--

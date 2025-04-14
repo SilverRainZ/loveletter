@@ -52,9 +52,11 @@ fn _main() -> Result<()> {
         let mut upserted = 0;
         for raw_mail in raw_mails.iter() {
             match raw_mail.parse() {
-                Ok(parsed_mail) => match archive.upsert_letter(&parsed_mail) {
-                    Ok(_) => upserted += 1,
-                    Err(e) => error!("failed to upsert letter: {}", e),
+                Ok(parsed_mail) => {
+                    match archive.upsert_letter(&parsed_mail) {
+                        Ok(_) => upserted += 1,
+                        Err(e) => error!("failed to upsert letter: {}", e),
+                    }
                 },
                 Err(e) => error!("failed to parse raw mail: {}", e),
             };

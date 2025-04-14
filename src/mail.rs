@@ -104,7 +104,7 @@ impl Mailbox {
 }
 
 pub struct RawMail {
-    data: String,
+    pub data: String,
 }
 
 impl RawMail {
@@ -157,10 +157,10 @@ impl ParsedMail<'_> {
 
     pub fn text_body(&self) -> Option<String> {
         let mut body:Vec<Cow<'_, str>> = Vec::new();
-        for i in self.msg.text_body.iter() {
-            if let Some(x) = self.msg.body_text(*i) {
-                body.push(x)
-            };
+        for part in self.msg.text_bodies() {
+            if let PartType::Text(x) = &part.body {
+                body.push(x.to_owned())
+            }
         }
         match body.is_empty() {
             true => None,
@@ -170,10 +170,10 @@ impl ParsedMail<'_> {
 
     pub fn html_body(&self) -> Option<String> {
         let mut body:Vec<Cow<'_, str>> = Vec::new();
-        for i in self.msg.html_body.iter() {
-            if let Some(x) = self.msg.body_html(*i) {
-                body.push(x)
-            };
+        for part in self.msg.html_bodies() {
+            if let PartType::Html(x) = &part.body {
+                body.push(x.to_owned())
+            }
         }
         match body.is_empty() {
             true => None,
@@ -234,6 +234,15 @@ mod tests {
         assert_eq!(parsed_mail.to(), Some(EmailAddress::new_unchecked("Love Letter <loveletter@example.com>")));
         assert_eq!(parsed_mail.subject(), Some("2025/04/03: 测试数据"));
         assert_eq!(parsed_mail.text_body(), Some("张同学 我们这个 I 人交朋友的项目还有效咩\u{a0}--\u{a0}Best regards,Shengyu Zhang\u{a0}https://example.com\u{a0}".to_string()));
+    }
+
+    #[test]
+    fn test_raw_mail_parse2() {
+        let data = fs::read_to_string("./test_data/mail2.txt").unwrap();
+        let raw_mail = RawMail{data};
+        let parsed_mail = raw_mail.parse().unwrap();
+        assert_eq!(parsed_mail.text_body(), Some("foo\n".to_string()));
+        assert_eq!(parsed_mail.html_body(), Some("<p>foo</p>\n".to_string()));
     }
 
     #[ignore]
