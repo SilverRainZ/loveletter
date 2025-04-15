@@ -4,7 +4,7 @@ use std::time::Duration;
 use std::thread;
 
 use anyhow::Result;
-use log::{Level, info, error};
+use log::{Level, info, warn, error};
 use clap::Parser;
 use signal_hook::{flag, consts::SIGTERM};
 
@@ -47,32 +47,43 @@ fn _main() -> Result<()> {
 
     let term = Arc::new(AtomicBool::new(false));
     flag::register(SIGTERM, Arc::clone(&term))?;
+    let mut first_fetch = true;
     while !term.load(Ordering::Relaxed) {
-        let raw_mails = mailbox.fetch_unseen()?;
+        if first_fetch {
+            first_fetch = false;
+        } else {
+            let interval = cfg.runtime.interval.unwrap_or(60);
+            info!("sleep for {} seconds...", interval);
+            thread::sleep(Duration::from_secs(interval));
+        }
+
+        let raw_mails = match mailbox.fetch_unseen() {
+            Ok(m) => m,
+            Err(e) => {
+                warn!("failed to fetch unseen mails: {}", e);
+                continue;
+            },
+        };
+
         let mut upserted = 0;
         for raw_mail in raw_mails.iter() {
             match raw_mail.parse() {
-                Ok(parsed_mail) => {
-                    match archive.upsert_letter(&parsed_mail) {
-                        Ok(_) => upserted += 1,
-                        Err(e) => error!("failed to upsert letter: {}", e),
-                    }
+                Ok(parsed_mail) => match archive.upsert_letter(&parsed_mail) {
+                    Ok(_) => upserted += 1,
+                    Err(e) => error!("failed to upsert letter: {}", e),
                 },
                 Err(e) => error!("failed to parse raw mail: {}", e),
             };
         }
         if upserted == 0 {
             info!("no letter upserted, skip rst generation");
-        } else {
-            match archive.generate_rstdoc() {
-                Ok(_) => (),
-                Err(e) => error!("failed to generate rstdoc: {}", e),
-            }
+            continue;
         }
 
-        let interval = cfg.runtime.interval.unwrap_or(60);
-        info!("sleep for {} seconds...", interval);
-        thread::sleep(Duration::from_secs(interval));
+        match archive.generate_rstdoc() {
+            Ok(_) => (),
+            Err(e) => error!("failed to generate rstdoc: {}", e),
+        }
     }
 
     // TODO: doesn't work
