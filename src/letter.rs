@@ -89,7 +89,7 @@ impl LoveLetter {
 
    .. raw:: html
 
-      {}
+{}
 ",
             self.date.to_string(),
             self.from.display_part(),
@@ -102,7 +102,11 @@ impl LoveLetter {
                 .updated_at
                 .map(|x| x.format(Date::FMT).to_string())
                 .unwrap_or("".to_string()),
-            self.content,
+            self.content.
+                lines().
+                map(|l| " ".repeat(3*2).to_string() + &l).
+                collect::<Vec<_>>().
+                join("\n"),
         ));
         buf.push('\n');
 
