@@ -19,7 +19,7 @@ pub struct Mailbox {
 impl Mailbox {
     const INBOX: &str = "INBOX";
 
-    pub fn open(cfg: ImapCfg) -> Result<Mailbox> {
+    pub fn open(cfg: ImapCfg) -> imap::Result<Mailbox> {
         info!("connecting to {}:{}...", &cfg.host, cfg.port);
         let client = imap::ClientBuilder::new(&cfg.host, cfg.port).connect()?;
         info!("connected");
@@ -42,7 +42,7 @@ impl Mailbox {
     //     for 
     // }
 
-    fn search(&mut self, query: &str) -> Result<HashSet<u32>> {
+    fn search(&mut self, query: &str) -> imap::Result<HashSet<u32>> {
         info!("selecting mailbox {}...", Self::INBOX);
         let mailbox = self.session.select(Self::INBOX)?;
         info!("selected, found {} mails ({} recent, {} unread) in mailbox {} (readonly: {})",
@@ -55,7 +55,7 @@ impl Mailbox {
     }
 
     // TODO: fetch size
-    pub fn fetch(&mut self, query: &str) -> Result<Vec<RawMail>> {
+    pub fn fetch(&mut self, query: &str) -> imap::Result<Vec<RawMail>> {
         let seqs = self.search(query)?.
             into_iter().
             map(|i| i.to_string()).
@@ -89,15 +89,15 @@ impl Mailbox {
         Ok(mails)
     }
 
-    pub fn fetch_seen(&mut self) -> Result<Vec<RawMail>> {
+    pub fn fetch_seen(&mut self) -> imap::Result<Vec<RawMail>> {
         self.fetch("SEEN")
     }
 
-    pub fn fetch_unseen(&mut self) -> Result<Vec<RawMail>> {
+    pub fn fetch_unseen(&mut self) -> imap::Result<Vec<RawMail>> {
         self.fetch("UNSEEN")
     }
 
-    pub fn close(mut self) -> Result<()> {
+    pub fn close(mut self) -> imap::Result<()> {
         self.session.logout()?;
         Ok(())
     }

@@ -64,7 +64,7 @@ pub struct RuntimeCfg {
 fn yes() -> bool { true }
 fn no() -> bool { false }
 fn i32_3() -> i32 { 3 }
-fn u64_60() -> u64 { 40 }
+fn u64_60() -> u64 { 60 }
 
 #[cfg(test)]
 mod tests {

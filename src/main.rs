@@ -1,12 +1,11 @@
 use std::process::ExitCode;
-use std::sync::{Arc, atomic::AtomicBool, atomic::Ordering};
 use std::time::Duration;
 use std::thread;
 
 use anyhow::Result;
 use log::{Level, info, warn, error};
 use clap::Parser;
-use signal_hook::{flag, consts::SIGTERM};
+use imap;
 
 use loveletter::utils::{logger, exit};
 use loveletter::cfg::Cfg;
@@ -43,54 +42,70 @@ fn _main() -> Result<()> {
         return Ok(())
     }
 
-    let mut mailbox = Mailbox::open(cfg.imap)?;
-
-    let term = Arc::new(AtomicBool::new(false));
-    flag::register(SIGTERM, Arc::clone(&term))?;
-    let mut first_fetch = true;
-    while !term.load(Ordering::Relaxed) {
-        if first_fetch {
-            first_fetch = false;
+    let mut first_connect = true;
+    loop {
+        if first_connect {
+            first_connect = false;
         } else {
-            info!("sleep for {} seconds...", cfg.runtime.interval);
+            info!("reconnect after {} seconds...", cfg.runtime.interval);
             thread::sleep(Duration::from_secs(cfg.runtime.interval));
         }
 
-        let raw_mails = match mailbox.fetch_unseen() {
+        let mut mailbox = match Mailbox::open(cfg.imap.clone()) {
             Ok(m) => m,
             Err(e) => {
-                warn!("failed to fetch unseen mails: {}", e);
+                warn!("failed to open mailbox: {}", e);
                 continue;
             },
         };
 
-        let mut upserted = 0;
-        for raw_mail in raw_mails.iter() {
-            match raw_mail.parse() {
-                Ok(parsed_mail) => match archive.upsert_letter(&parsed_mail) {
-                    Ok(_) => upserted += 1,
-                    Err(e) => error!("failed to upsert letter: {}", e),
-                },
-                Err(e) => error!("failed to parse raw mail: {}", e),
-            };
-        }
-        if upserted == 0 {
-            info!("no letter upserted, skip rst generation");
-            continue;
-        }
+        let mut first_fetch = true;
+        loop {
+            if first_fetch {
+                first_fetch = false;
+            } else {
+                info!("sleep for {} seconds...", cfg.runtime.interval);
+                thread::sleep(Duration::from_secs(cfg.runtime.interval));
+            }
 
-        match archive.generate_rstdoc() {
-            Ok(_) => (),
-            Err(e) => error!("failed to generate rstdoc: {}", e),
+            let raw_mails = match mailbox.fetch_unseen() {
+                Ok(m) => m,
+                Err(e) => {
+                    warn!("failed to fetch unseen mails: {}", e);
+                    match e {
+                        imap::Error::ConnectionLost => break,
+                        _ => continue, // ignore for now
+                    }
+                },
+            };
+
+            let mut upserted = 0;
+            for raw_mail in raw_mails.iter() {
+                match raw_mail.parse() {
+                    Ok(parsed_mail) => match archive.upsert_letter(&parsed_mail) {
+                        Ok(_) => upserted += 1,
+                        Err(e) => error!("failed to upsert letter: {}", e),
+                    },
+                    Err(e) => error!("failed to parse raw mail: {}", e),
+                };
+            }
+            if upserted == 0 {
+                info!("no letter upserted, skip rst generation");
+                continue;
+            }
+
+            match archive.generate_rstdoc() {
+                Ok(_) => (),
+                Err(e) => error!("failed to generate rstdoc: {}", e),
+            }
         }
     }
 
     // TODO: doesn't work
-    info!("closing mailbox...");
-    mailbox.close()?;
-    info!("closed");
-
-    Ok(())
+    // info!("closing mailbox...");
+    // mailbox.close()?;
+    // info!("closed");
+    // Ok(())
 }
 
 fn main() -> ExitCode {
