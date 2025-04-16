@@ -7,5 +7,6 @@
 
 .. toctree::
    :glob:
+   :reversed:
 
    *

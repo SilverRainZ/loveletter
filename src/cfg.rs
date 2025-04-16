@@ -39,21 +39,32 @@ pub struct ArchiveCfg {
     // Data directories.
     pub letter_dir: String,        // dir of structured love letters
     pub rstdoc_dir: String,        // dir of generated reStructuredText docs
-    pub create_dirs: Option<bool>, // whether to create data dirs automaticlly, true by default
+    #[serde(default = "yes")]
+    pub create_dirs: bool, // whether to create data dirs automaticlly, true by default
 
     // Git integration.
-    pub git_no_push: Option<bool>, // do not push changes to remote, true by default
+    #[serde(default = "yes")]
+    pub git_no_push: bool, // whether to push changes to remote
+    #[serde(default = "no")]
+    pub git_pre_cleanup: bool, // clean up repo before any operation
+    #[serde(default = "i32_3")]
+    pub git_retry: i32,
 
     // Permssion control.
     pub allowed_from_addrs: EmailAddressList,
     pub allowed_to_addrs: EmailAddressList,
-    pub overwrite: Option<bool>, // allow overwrite letters without "[edit]" action, false by default
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeCfg {
-    pub interval: Option<u64>, // interval for checking new mails, in seconds, 60 by default
+    #[serde(default = "u64_60")]
+    pub interval: u64, // interval for checking new mails, in seconds
 }
+
+fn yes() -> bool { true }
+fn no() -> bool { false }
+fn i32_3() -> i32 { 3 }
+fn u64_60() -> u64 { 40 }
 
 #[cfg(test)]
 mod tests {

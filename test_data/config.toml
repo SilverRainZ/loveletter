@@ -7,6 +7,8 @@ password = "p_a_s_s_w_o_r_d"
 [archive]
 letter_dir = "./letter/"
 rstdoc_dir = "./rst/"
+# create_dirs = true
+
 allowed_from_addrs = [
     "哥哥 <gege@example.com>",
     "妹妹 <meimei@example.com>",
@@ -15,5 +17,8 @@ allowed_to_addrs = [
     "Love Letter <loveletter@example.com>"
 ]
 
+# git_no_push = true
+# git_retry = 3
+
 [runtime]
-interval = 60
+# interval = 60

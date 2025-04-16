@@ -52,9 +52,8 @@ fn _main() -> Result<()> {
         if first_fetch {
             first_fetch = false;
         } else {
-            let interval = cfg.runtime.interval.unwrap_or(60);
-            info!("sleep for {} seconds...", interval);
-            thread::sleep(Duration::from_secs(interval));
+            info!("sleep for {} seconds...", cfg.runtime.interval);
+            thread::sleep(Duration::from_secs(cfg.runtime.interval));
         }
 
         let raw_mails = match mailbox.fetch_unseen() {

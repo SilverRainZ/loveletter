@@ -234,8 +234,8 @@ pub struct Archive {
 
 impl Archive {
     pub fn load(cfg: ArchiveCfg) -> Result<Archive> {
-        fn create_dir(p: &Path, create_dirs: Option<bool>) -> Result<()> {
-            if !p.exists() && create_dirs.unwrap_or(true) {
+        fn create_dir(p: &Path, create_dirs: bool) -> Result<()> {
+            if !p.exists() && create_dirs {
                 info!("creating dir {}", p.display());
                 fs::create_dir_all(p)?;
                 info!("created");
@@ -243,8 +243,8 @@ impl Archive {
             Ok(())
         }
 
-        fn load_repo(p: &Path, create_dirs: Option<bool>) -> Result<Repo> {
-            Repo::load(p).or_else(|e| if create_dirs.unwrap_or(true) {
+        fn load_repo(p: &Path, create_dirs: bool) -> Result<Repo> {
+            Repo::load(p).or_else(|e| if create_dirs {
                     Repo::init(p)
                 }  else {
                     Err(e)
@@ -388,11 +388,14 @@ impl Archive {
 
         // Premission checks.
         match action.as_deref() {
-            None => if letter_exists && !self.cfg.overwrite.unwrap_or(false) {
-                bail!("letter {} already exists: {} ", &letter, letter_path.display());
-            }
-            Some("edit") => (), // pass
+            None => (),
+            Some("edit") => (), // TODO: drop action support?
             Some(x) => bail!("unknown action: {}", x),
+        }
+
+        // Cleanup repo before any change.
+        if self.cfg.git_pre_cleanup {
+            self.letter_git_repo.cleanup()?;
         }
 
         if letter_exists {
@@ -406,8 +409,8 @@ impl Archive {
 
         self.letter_git_repo.add(&letter_path)?;
         self.letter_git_repo.commit(&("[loveletter] ".to_owned() + subject), Some(from.clone()))?;
-        if !self.cfg.git_no_push.unwrap_or(true) {
-            self.letter_git_repo.push()?;
+        if !self.cfg.git_no_push {
+            self.letter_git_repo.push(self.cfg.git_retry)?;
         }
 
         Ok(letter)
@@ -473,6 +476,11 @@ impl Archive {
             }
         }
 
+        // Cleanup repo before any change.
+        if self.cfg.git_pre_cleanup {
+            self.letter_git_repo.cleanup()?;
+        }
+
         for (file, content) in files.iter() {
             debug!("writing letters to {}...", file.display());
             fs::write(file, content)?;
@@ -481,8 +489,8 @@ impl Archive {
         }
 
         self.rstdoc_git_repo.commit("[loveletter] generate rstdoc", None)?;
-        if !self.cfg.git_no_push.unwrap_or(true) {
-            self.rstdoc_git_repo.push()?;
+        if !self.cfg.git_no_push {
+            self.rstdoc_git_repo.push(self.cfg.git_retry)?;
         }
 
         Ok(())

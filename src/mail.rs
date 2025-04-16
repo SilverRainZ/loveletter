@@ -155,19 +155,7 @@ impl ParsedMail<'_> {
             and_then(|x| DateTime::from_timestamp(x.to_timestamp(), 0))
     }
 
-    pub fn text_body(&self) -> Option<String> {
-        let mut body:Vec<Cow<'_, str>> = Vec::new();
-        for part in self.msg.text_bodies() {
-            if let PartType::Text(x) = &part.body {
-                body.push(x.to_owned())
-            }
-        }
-        match body.is_empty() {
-            true => None,
-            false => Some(body.join("\n")),
-        }
-    }
-
+    // TODO: deal with multipart
     pub fn html_body(&self) -> Option<String> {
         let mut body:Vec<Cow<'_, str>> = Vec::new();
         for part in self.msg.html_bodies() {
@@ -226,14 +214,14 @@ mod tests {
     use crate::cfg::Cfg;
 
     #[test]
-    fn test_raw_mail_parse() {
+    fn test_raw_mail_parse1() {
         let data = fs::read_to_string("./test_data/mail.txt").unwrap();
         let raw_mail = RawMail{data};
         let parsed_mail = raw_mail.parse().unwrap();
         assert_eq!(parsed_mail.from(), Some(EmailAddress::new_unchecked("Shengyu Zhang <gege@example.com>")));
         assert_eq!(parsed_mail.to(), Some(EmailAddress::new_unchecked("Love Letter <loveletter@example.com>")));
         assert_eq!(parsed_mail.subject(), Some("2025/04/03: 测试数据"));
-        assert_eq!(parsed_mail.text_body(), Some("张同学 我们这个 I 人交朋友的项目还有效咩\u{a0}--\u{a0}Best regards,Shengyu Zhang\u{a0}https://example.com\u{a0}".to_string()));
+        assert_eq!(parsed_mail.html_body(), Some("<div>张同学 我们这个 I 人交朋友的项目还有效咩</div><div>\u{a0}</div><div>--\u{a0}</div><div>Best regards,</div><div>Shengyu Zhang</div><div>\u{a0}</div><div>https://example.com</div><div>\u{a0}</div>\n".to_string()));
     }
 
     #[test]
@@ -241,7 +229,6 @@ mod tests {
         let data = fs::read_to_string("./test_data/mail2.txt").unwrap();
         let raw_mail = RawMail{data};
         let parsed_mail = raw_mail.parse().unwrap();
-        assert_eq!(parsed_mail.text_body(), Some("foo\n".to_string()));
         assert_eq!(parsed_mail.html_body(), Some("<p>foo</p>\n".to_string()));
     }
 

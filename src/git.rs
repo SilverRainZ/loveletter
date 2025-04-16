@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use log::debug;
+use log::{debug, warn};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use xshell::{cmd, Shell};
 use email_address::EmailAddress;
 
@@ -58,13 +58,38 @@ impl Repo {
         Ok(())
     }
 
-    pub fn push(&self) -> Result<()> {
-        cmd!(self.sh, "git push").run()?;
+    pub fn push(&self, retry: i32) -> Result<()> {
+        for i in 0..retry {
+            match cmd!(self.sh, "git pull --rebase").run() {
+                Ok(_) => break,
+                Err(e) => {
+                    let msg = "failed to pull from remote";
+                    warn!("{}: {} ({}/{})", msg, e, i+1, retry);
+                    if i == retry - 1 {
+                        bail!(msg);
+                    }
+                }
+            }
+        }
+        for i in 0..retry {
+            match cmd!(self.sh, "git push").run() {
+                Ok(_) => break,
+                Err(e) => {
+                    let msg = "failed to push to remote";
+                    warn!("{}: {} ({}/{})", msg, e, i+1, retry);
+                    if i == retry - 1 {
+                        bail!(msg);
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
-    pub fn is_clean(&self) -> Result<bool> {
-        let stdout = cmd!(self.sh, "git status --short").read()?;
-        Ok(stdout.is_empty())
+    /// Ensure the repository is clean and up-to-date that can be pushed changes.
+    pub fn cleanup(&self) -> Result<()> {
+        cmd!(self.sh, "git clean -d --force").run()?;
+        cmd!(self.sh, "git reset --hard HEAD").run()?;
+        Ok(())
     }
 }
