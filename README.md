@@ -18,4 +18,4 @@ See `./test_data/config.toml`.
 
 MIT License.
 
-Copyright (c) 2025 Shengyu Zhang and Swan Si.
+Copyright (c) 2025 Shengyu Zhang and Wen Si.
